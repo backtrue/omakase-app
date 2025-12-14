@@ -28,7 +28,7 @@ Base URL (public):
 
 ### Event Ordering (Typical)
 1. `status` (0..n times)
-2. `menu_data` (0..1 time)
+2. `menu_data` (0..n times)
 3. `image_update` (0..n times)
 4. `done` (exactly 1 time)
 
@@ -109,10 +109,25 @@ Recommended error codes:
 ### Event: `done`
 Always emitted once to end the stream.
 
-Payload:
+Payload (minimal):
 ```json
 {
   "status": "completed" | "failed"
+}
+```
+
+Payload (extended, optional; backward-compatible):
+```json
+{
+  "status": "completed" | "failed",
+  "session_id": "uuid",
+  "summary": {
+    "elapsed_ms": 12345,
+    "items_count": 12,
+    "used_cache": true,
+    "used_fallback": false,
+    "unknown_items_count": 3
+  }
 }
 ```
 

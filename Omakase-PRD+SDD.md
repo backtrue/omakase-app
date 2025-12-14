@@ -142,11 +142,11 @@ JSON
 **Response Stream (依序推送的 Events)**:  
 事件契約以 `spec/01_API_SSE.md` 為準。以下為 v1 摘要：
 
-**Event Ordering (Typical)**
-1. `status` (0..n)
-2. `menu_data` (0..1)
-3. `image_update` (0..n)
-4. `done` (exactly 1)
+ **Event Ordering (Typical)**
+ 1. `status` (0..n)
+ 2. `menu_data` (0..n)
+ 3. `image_update` (0..n)
+ 4. `done` (exactly 1)
 
 **Event: status**
 - 用於進度與 keep-alive。
@@ -214,6 +214,22 @@ Recommended error codes (v1):
 }
 ```
 
+ *(optional extended `done` payload; backward-compatible, see `spec/01_API_SSE.md`)*
+
+ ```json
+ {
+   "status": "completed" | "failed",
+   "session_id": "uuid",
+   "summary": {
+     "elapsed_ms": 12345,
+     "items_count": 12,
+     "used_cache": true,
+     "used_fallback": false,
+     "unknown_items_count": 3
+   }
+ }
+ ```
+
 * 
 
 ## **3\. 領域邏輯與規則 (Domain Logic & Behavior)**
@@ -273,3 +289,6 @@ Recommended error codes (v1):
 - Object key: `gen/<session_id>/<item_id>.jpg`
 - Public URL: `https://omakase.thinkwithblack.com/assets/gen/<session_id>/<item_id>.jpg`
 
+## **6\. Release Notes (Draft)**
+
+Release notes 與變更摘要以 `spec/13_RELEASE_NOTES_DRAFT.md` 為準。

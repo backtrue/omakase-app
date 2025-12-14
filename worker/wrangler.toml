@@ -1,0 +1,16 @@
+name = "omakase-worker"
+main = "src/index.ts"
+compatibility_date = "2025-12-01"
+
+# Bind this worker to your domain (set in Cloudflare dashboard / routes)
+# routes = [
+#   { pattern = "omakase.thinkwithblack.com/*", zone_name = "thinkwithblack.com" }
+# ]
+
+[vars]
+# Set this to your Cloud Run service base URL, e.g.
+# https://omakase-api-xxxxx.a.run.app
+UPSTREAM_CLOUD_RUN_URL = "https://omakase-api-fxfooop7pq-de.a.run.app"
+
+# Optional basic CORS for web debugging (iOS does not require CORS)
+CORS_ALLOW_ORIGIN = "*"
