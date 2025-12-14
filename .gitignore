@@ -1,0 +1,33 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Local env files
+.env
+.env.*
+
+# Python tooling
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+
+# Cloudflare Worker
+worker/.wrangler/
+
+# Xcode / SwiftPM
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+.swiftpm/
+
+# Logs
+*.log
