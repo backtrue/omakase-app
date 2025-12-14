@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+boto3
+
+google-genai
+
+pillow
