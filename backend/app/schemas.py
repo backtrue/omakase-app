@@ -35,6 +35,7 @@ class MenuDataEvent(BaseModel):
 
 
 class VlmMenuItem(BaseModel):
+    dish_key: Optional[str] = Field(default="")
     original_name: str
     translated_name: str
     description: Optional[str] = Field(default="")
@@ -46,3 +47,7 @@ class VlmMenuItem(BaseModel):
 
 class VlmMenuResponse(BaseModel):
     menu_items: List[VlmMenuItem]
+
+
+class VlmDishStringsResponse(BaseModel):
+    dish_strings: List[str]

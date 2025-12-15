@@ -14,3 +14,8 @@ UPSTREAM_CLOUD_RUN_URL = "https://omakase-api-fxfooop7pq-de.a.run.app"
 
 # Optional basic CORS for web debugging (iOS does not require CORS)
 CORS_ALLOW_ORIGIN = "*"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "omakase"
+database_id = "b63e3710-1a71-4278-aebb-45fe40345e40"

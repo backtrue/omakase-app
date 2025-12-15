@@ -3,6 +3,7 @@ uvicorn[standard]
 httpx
 pydantic
 boto3
+psycopg[binary]
 
 google-genai
 
