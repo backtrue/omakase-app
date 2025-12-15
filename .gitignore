@@ -31,3 +31,15 @@ DerivedData/
 
 # Logs
 *.log
+
+# Local test artifacts and accidental generated folders
+20240627_1758拷貝.jpg
+backend/20240627_1758拷貝.jpg
+worker/20240627_1758.jpg
+backend/payload.json
+backend/mobile/
+
+# Common Expo build/cache directories under mobile
+mobile/.expo/
+mobile/ios/
+mobile/android/

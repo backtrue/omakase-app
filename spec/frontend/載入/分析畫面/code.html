@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-Hant"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Izakaya Decoder - Analysis</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#13ec5b",
+              "background-light": "#f6f8f6",
+              "background-dark": "#102216",
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "Noto Sans TC", "sans-serif"],
+              "body": ["Plus Jakarta Sans", "Noto Sans TC", "sans-serif"],
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+            animation: {
+                'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            }
+          },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white antialiased overflow-hidden selection:bg-primary selection:text-background-dark">
+<div class="relative flex h-screen w-full flex-col justify-between overflow-hidden max-w-md mx-auto shadow-2xl bg-background-light dark:bg-background-dark">
+<!-- Top Section: Visual & Main Status -->
+<div class="flex-1 flex flex-col items-center justify-center p-6 pb-0 relative z-10">
+<!-- Central Visual: Enso Circle with Glow -->
+<div class="relative mb-10 group cursor-default">
+<!-- Outer Glow Ring -->
+<div class="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/40 rounded-full blur-xl opacity-75 animate-pulse-slow"></div>
+<!-- Image Container -->
+<div class="relative w-48 h-48 rounded-full overflow-hidden border-2 border-primary/30 shadow-[0_0_50px_rgba(19,236,91,0.15)] bg-background-dark flex items-center justify-center">
+<div class="absolute inset-0 bg-cover bg-center opacity-80 mix-blend-lighten" data-alt="Abstract Japanese ink wash enso circle painting" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAcvne11bW933T9HnXJCPyrsWL9PHsfvsNa8Var1eiir51018fv-YnzjHIm3UIBWg6LVLbvqb9gxCdevLsNt08q7SlxZgxoO70VeTCg5v8wUnzCixhLgMUUwUMqPXuvsUffuKklVG1ss-zs-HiYyy-VwzjTktHlkgDGHWuEJcjcNFm6EvYfm8ypfwKBk-jTKkf1D9aJ7I0v5EECWA4JaQqj9W3rJRBM_0U6cnQnKNuts4puQnaWAYoRK9rQ6CojI2cdj3ROKq_9z90");'>
+</div>
+<!-- Overlay to tint it slightly green -->
+<div class="absolute inset-0 bg-primary/10"></div>
+<!-- Center Icon/Symbol -->
+<span class="material-symbols-outlined text-6xl text-primary animate-pulse relative z-10 drop-shadow-[0_0_10px_rgba(19,236,91,0.8)]">
+                        translate
+                    </span>
+</div>
+<!-- Floating Particles (Simulated with spans) -->
+<div class="absolute top-0 right-0 h-2 w-2 bg-primary rounded-full blur-[1px] animate-ping"></div>
+<div class="absolute bottom-4 left-4 h-1.5 w-1.5 bg-primary rounded-full blur-[1px] animate-pulse"></div>
+</div>
+<!-- Headline -->
+<h2 class="text-slate-900 dark:text-white tracking-tight text-3xl font-bold leading-tight px-4 text-center mb-2">
+                正在解碼...
+            </h2>
+<!-- Sub-headline -->
+<p class="text-slate-500 dark:text-gray-400 text-base font-normal leading-normal px-4 text-center">
+                AI 正在努力解讀菜單中...
+            </p>
+</div>
+<!-- Middle Section: Progress Details -->
+<div class="w-full px-8 pb-4 relative z-10">
+<!-- Progress Bar -->
+<div class="flex flex-col gap-4 mb-8">
+<div class="flex justify-between items-end">
+<p class="text-primary text-sm font-bold tracking-widest uppercase">Analysis Progress</p>
+<p class="text-white text-sm font-mono">67%</p>
+</div>
+<div class="h-1.5 w-full bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-primary shadow-[0_0_10px_#13ec5b] rounded-full transition-all duration-1000 ease-out" style="width: 67%;"></div>
+</div>
+</div>
+<!-- Step Indicators -->
+<div class="space-y-4">
+<!-- Step 1: Done -->
+<div class="flex items-center gap-3 text-white/50">
+<div class="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center border border-primary/40">
+<span class="material-symbols-outlined text-sm text-primary">check</span>
+</div>
+<span class="text-sm line-through decoration-primary/50">識別手寫字體</span>
+</div>
+<!-- Step 2: Active -->
+<div class="flex items-center gap-3 text-white">
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center shadow-[0_0_10px_rgba(19,236,91,0.5)]">
+<span class="material-symbols-outlined text-sm text-background-dark animate-spin">sync</span>
+</div>
+<span class="text-sm font-medium">分析食材成分...</span>
+</div>
+<!-- Step 3: Pending -->
+<div class="flex items-center gap-3 text-white/30">
+<div class="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">schedule</span>
+</div>
+<span class="text-sm">匹配推薦清酒</span>
+</div>
+</div>
+</div>
+<!-- Bottom Section: Did You Know -->
+<div class="p-6 relative z-10">
+<div class="bg-white/5 dark:bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary text-xl mt-0.5">lightbulb</span>
+<div class="flex flex-col gap-1">
+<p class="text-xs font-bold text-primary tracking-wider uppercase">居酒屋小知識</p>
+<p class="text-slate-600 dark:text-gray-300 text-sm font-normal leading-relaxed">
+                            你知道嗎？<span class="font-bold text-white">Otoshi (お通し)</span> 是居酒屋的一種座席費小菜，通常在您點餐前就會送上，是日本特有的居酒屋文化。
+                        </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Background Ambience Effects -->
+<div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[100px] pointer-events-none z-0"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none z-0"></div>
+</div>
+</body></html>

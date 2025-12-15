@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dish Communication Screen</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;family=Noto+Sans+JP:wght@400;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13ec5b",
+                        "background-light": "#f6f8f6",
+                        "background-dark": "#102216",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"],
+                        "japanese": ["Noto Sans JP", "sans-serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased overflow-hidden selection:bg-primary selection:text-background-dark">
+<div class="relative flex h-screen w-full flex-col overflow-hidden">
+<!-- Background Layer: Simulated watercolor illustration with heavy overlay for readability -->
+<div class="absolute inset-0 z-0 select-none">
+<div class="absolute inset-0 bg-center bg-cover scale-110 blur-sm opacity-60" data-alt="Abstract watercolor texture of crispy fried chicken on a dark rustic plate" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA1uqao8B0BTsEutHBaAJlSjGgDCTIlVwag5ojvJgWBZ0tmoYameIRULBre0oP7-XfcnspPHs_ZYIakDCzXeqbUHmR1rVcBx98sH14yl35eljRX-KxaVYTRitvUie8EO8lSDeefhmeGZR9FZyrN8wWuP1j1X5MIFa277epBDDcanHsVekI8npFWKZe_MpEVX1_gmgpgOJ1X7CFBOhcjUbNna1Iz3ir_viQxm9Mg3RDOIlH82IeYFWVIfEudpNd5I3WNW98G7qBS8kQ');">
+</div>
+<!-- Primary dark overlay to ensure text contrast -->
+<div class="absolute inset-0 bg-gradient-to-b from-background-dark/80 via-background-dark/95 to-background-dark"></div>
+</div>
+<!-- Top Navigation Bar -->
+<div class="relative z-10 flex items-center p-4 pt-12 justify-between w-full">
+<button class="group flex size-12 shrink-0 items-center justify-center rounded-full bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-all active:scale-95">
+<span class="material-symbols-outlined text-white group-hover:rotate-90 transition-transform duration-300">close</span>
+</button>
+<!-- Context Action: More Info Chip -->
+<button class="flex items-center gap-2 h-10 pl-3 pr-4 rounded-full bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-all active:scale-95">
+<span class="material-symbols-outlined text-primary text-[20px]">info</span>
+<span class="text-white text-sm font-bold tracking-wide">Info</span>
+</button>
+</div>
+<!-- Main Content Area: Centered Dish Name -->
+<div class="relative z-10 flex-1 flex flex-col items-center justify-center px-6 w-full max-w-md mx-auto -mt-16">
+<!-- Decorative Japanese vertical accent line -->
+<div class="w-[1px] h-12 bg-gradient-to-b from-transparent via-primary/50 to-transparent mb-8"></div>
+<!-- Hero Text: Japanese -->
+<h1 class="font-japanese text-white text-[96px] font-black leading-tight tracking-tighter drop-shadow-2xl text-center select-all">
+                唐揚げ
+            </h1>
+<!-- Subtitle: Romaji -->
+<h2 class="text-primary/90 text-4xl font-bold tracking-[0.2em] mt-2 uppercase text-center font-display drop-shadow-lg">
+                Karaage
+            </h2>
+<!-- Description/Translation -->
+<p class="text-gray-400 text-base font-medium mt-6 text-center max-w-[280px] leading-relaxed">
+                Japanese style fried chicken, marinated in soy sauce, garlic, and ginger.
+            </p>
+<!-- Decorative visual element -->
+<div class="mt-8 flex gap-2 justify-center opacity-30">
+<div class="w-2 h-2 rounded-full bg-white"></div>
+<div class="w-2 h-2 rounded-full bg-white"></div>
+<div class="w-2 h-2 rounded-full bg-white"></div>
+</div>
+</div>
+<!-- Footer: Action Button -->
+<div class="relative z-10 w-full px-6 pb-12 flex flex-col items-center gap-5">
+<!-- Large Floating Action Button for Audio -->
+<button class="group relative flex w-full max-w-[340px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-[88px] bg-primary shadow-[0_0_60px_-15px_rgba(19,236,91,0.4)] active:scale-95 active:shadow-none transition-all duration-300 hover:shadow-[0_0_80px_-10px_rgba(19,236,91,0.6)]">
+<!-- Hover effect layer -->
+<div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+<!-- Icon and Text Container -->
+<div class="flex items-center gap-4 relative z-20">
+<div class="flex items-center justify-center size-10 rounded-full bg-background-dark/10 group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined text-background-dark !text-[36px]">volume_up</span>
+</div>
+<span class="text-background-dark text-2xl font-bold tracking-tight">Play Audio</span>
+</div>
+<!-- Audio Wave Animation visual (Static for now, implies movement) -->
+<div class="absolute right-8 flex gap-1 items-end h-8 opacity-40">
+<div class="w-1 bg-background-dark h-3 rounded-full animate-pulse"></div>
+<div class="w-1 bg-background-dark h-6 rounded-full animate-pulse delay-75"></div>
+<div class="w-1 bg-background-dark h-4 rounded-full animate-pulse delay-150"></div>
+</div>
+</button>
+<p class="text-white/40 text-xs font-semibold tracking-widest uppercase">Tap to speak to staff</p>
+</div>
+</div>
+</body></html>

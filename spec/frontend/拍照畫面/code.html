@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Izakaya Decoder - Scan</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#13ec5b",
+              "background-light": "#f6f8f6",
+              "background-dark": "#102216",
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scan line animation */
+        @keyframes scan {
+            0% { top: 5%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 95%; opacity: 0; }
+        }
+        .scan-line {
+            animation: scan 3s ease-in-out infinite;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark font-display h-screen w-full overflow-hidden text-white selection:bg-primary selection:text-black">
+<!-- Camera Viewport Container -->
+<div class="relative flex h-full w-full flex-col group/design-root">
+<!-- Simulated Camera Feed -->
+<div class="absolute inset-0 w-full h-full z-0 bg-black">
+<!-- Image mimicking a camera feed looking at a menu -->
+<img alt="Japanese handwritten menu on wooden table dimly lit" class="w-full h-full object-cover opacity-60" data-alt="Japanese handwritten menu on wooden table dimly lit" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXebijQb481PDJe6Oqv5JRhE9oZ_nEKP0Uccsvc5IzNwmekvQGNEKl5L1-xD2mk11XSnajjSfrjTZi3yRjGLola5xsRXF8C3cCJzvNlc_ICn35MknEnS4D4LbRzBGTjqUqdzeOXbVA_hbUiJbDCkbBAdnLdrWODqa3DXGa1N7wJa6aIARkwhaEHt6ct49Wl7cXH5R_kVTq3Yrkw2MauLPBnl1bQ8NED-K4fAVk-LsO2pB08U5yDS9UJp2ZcOiepv8EgRyoHkufG4c"/>
+<!-- Dark overlay to ensure UI legibility -->
+<div class="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
+</div>
+<!-- Top Bar -->
+<div class="relative z-20 flex items-center justify-between p-6 pt-14">
+<button class="flex size-10 items-center justify-center rounded-full bg-black/20 backdrop-blur-md transition hover:bg-white/20">
+<span class="material-symbols-outlined text-white text-[28px]">close</span>
+</button>
+<div class="flex flex-col items-center">
+<span class="text-xs font-bold uppercase tracking-[0.2em] text-primary drop-shadow-[0_0_8px_rgba(19,236,91,0.5)]">Decoder Mode</span>
+</div>
+<button class="flex size-10 items-center justify-center rounded-full bg-black/20 backdrop-blur-md transition hover:bg-white/20">
+<span class="material-symbols-outlined text-white text-[24px]">help</span>
+</button>
+</div>
+<!-- Scanning Area / Viewport Overlay -->
+<div class="relative flex-1 flex flex-col items-center justify-center z-10 p-8">
+<!-- Focus Frame -->
+<div class="relative w-full max-w-sm aspect-[3/4] rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
+<!-- Corner Indicators (Decoder Styling) -->
+<div class="absolute top-0 left-0 h-12 w-12 border-t-[4px] border-l-[4px] border-primary rounded-tl-xl drop-shadow-[0_0_10px_rgba(19,236,91,0.6)]"></div>
+<div class="absolute top-0 right-0 h-12 w-12 border-t-[4px] border-r-[4px] border-primary rounded-tr-xl drop-shadow-[0_0_10px_rgba(19,236,91,0.6)]"></div>
+<div class="absolute bottom-0 left-0 h-12 w-12 border-b-[4px] border-l-[4px] border-primary rounded-bl-xl drop-shadow-[0_0_10px_rgba(19,236,91,0.6)]"></div>
+<div class="absolute bottom-0 right-0 h-12 w-12 border-b-[4px] border-r-[4px] border-primary rounded-br-xl drop-shadow-[0_0_10px_rgba(19,236,91,0.6)]"></div>
+<!-- Scanning Laser Line -->
+<div class="scan-line absolute left-0 right-0 h-[2px] bg-primary shadow-[0_0_20px_rgba(19,236,91,0.8)]"></div>
+<!-- Grid Overlay (Subtle) -->
+<div class="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-10 pointer-events-none">
+<div class="border-r border-white"></div>
+<div class="border-r border-white"></div>
+<div></div>
+<div class="border-r border-t border-white"></div>
+<div class="border-r border-t border-white"></div>
+<div class="border-t border-white"></div>
+<div class="border-r border-t border-white"></div>
+<div class="border-r border-t border-white"></div>
+<div class="border-t border-white"></div>
+</div>
+</div>
+<!-- Context Instruction -->
+<div class="mt-8 flex items-center justify-center">
+<p class="rounded-full bg-black/60 px-5 py-2 text-sm font-medium text-[#e0e0e0] backdrop-blur-md border border-white/10 shadow-lg">
+                    Align handwritten menu within the frame
+                </p>
+</div>
+</div>
+<!-- Bottom Controls -->
+<div class="relative z-20 w-full pb-12 pt-4 px-8">
+<div class="flex items-center justify-between gap-6">
+<!-- Gallery / History Button -->
+<button class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-black/40 backdrop-blur-sm transition active:scale-95">
+<img alt="Thumbnail of previous scan" class="h-full w-full object-cover opacity-80 hover:opacity-100" data-alt="Blurred thumbnail of a previous menu scan" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAt12ytKBp84JCT5CC-ZC02KFHcT6Bv_ZyHE9ajmwMl7vVyKdROpnQT37zTZ9TlNQSfP26y4bHdUxbMG_uaiAYW-14OLB8vq3SSzwa610Z65RU72N4iTM562QaHFSkXOpssNhrJ0Enzoh2uMq5KHOHkPVM7Vtvz4WTpC2U_n8hNy32b3ktzZL1PVuwYM5yW8n2_61XpN1XTw0QWVhJeEFhPyQ2bhAbtkIyhWor6fISst_NP_E0rmTBR8CfvCPFi7xNTDADz0sXIkF0"/>
+</button>
+<!-- Shutter Button -->
+<button class="group flex shrink-0 items-center justify-center rounded-full size-20 border-[5px] border-white bg-transparent transition-all active:scale-95 active:border-primary/50">
+<div class="size-16 rounded-full bg-primary shadow-[0_0_15px_rgba(19,236,91,0.4)] group-active:scale-90 transition-transform"></div>
+</button>
+<!-- Flash Toggle -->
+<button class="flex shrink-0 size-14 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm text-white border border-white/10 transition active:bg-primary/20 hover:bg-white/10">
+<span class="material-symbols-outlined text-[28px]">flash_on</span>
+</button>
+</div>
+<!-- Bottom Spacer for Home Indicator -->
+<div class="h-4 w-full"></div>
+</div>
+</div>
+</body></html>

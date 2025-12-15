@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-Hant"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Izakaya Decoder</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&amp;family=Noto+Serif+TC:wght@400;700&amp;family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13ec5b",
+                        "background-light": "#f6f8f6",
+                        "background-dark": "#102216",
+                        "card-dark": "#1c271f",
+                        "text-muted": "#9db9a6",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"],
+                        "serif-jp": ["Noto Serif JP", "serif"],
+                        "serif-tc": ["Noto Serif TC", "serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for horizontal scrolling */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white antialiased selection:bg-primary selection:text-background-dark">
+<div class="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden max-w-md mx-auto shadow-2xl">
+<!-- Top App Bar -->
+<div class="sticky top-0 z-50 flex items-center bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md p-4 pb-2 justify-between border-b border-white/5">
+<button class="text-slate-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex flex-col items-center">
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-tight">AI 解碼菜單</h2>
+<span class="text-xs text-primary font-medium tracking-widest uppercase">Izakaya Decoder</span>
+</div>
+<div class="flex w-10 items-center justify-end">
+<button class="flex items-center justify-center text-primary hover:text-white transition-colors">
+<span class="material-symbols-outlined">photo_camera</span>
+</button>
+</div>
+</div>
+<!-- Original Menu Source Thumbnail (Collapsible/Preview) -->
+<div class="px-4 py-3">
+<div class="relative w-full h-16 rounded-xl overflow-hidden bg-card-dark group cursor-pointer border border-white/10 flex items-center shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center opacity-60 group-hover:opacity-40 transition-opacity" data-alt="Blurred close-up of a Japanese paper menu with handwritten text" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAXLpnxOrQ3fz5X1Y9dSWtuMcjeo8O3qkH_fR_yyzbPFocLk2jaDBLliGgg0vapx2UijSkv3PQAtOaG8vEShPBl9bVySn2sHKlZ2fH3f4zf0bDlrVdK0IPlUozL5cW0i2YXiyx54Dodkxu4d_3zVvdPXwr21f1PIhIj4R-lyaSFKGxJEgiWjsEq3yo00JeQVCbL5nWu489iOVlz9oEBwtXH3eaj8a8Q47isglxvgz5cH_8cS1rboiPA2CIf_HIg8w4dsarCGSstf-I");'></div>
+<div class="relative z-10 flex items-center justify-between w-full px-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">image</span>
+<span class="text-white text-sm font-semibold">原始菜單來源</span>
+</div>
+<span class="material-symbols-outlined text-white/70 text-xl">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Hero Section: Top 3 Recommendations -->
+<div class="pt-2 pb-1">
+<div class="flex items-center gap-2 px-4 mb-3">
+<span class="material-symbols-outlined text-primary">verified</span>
+<h2 class="text-slate-900 dark:text-white text-xl font-bold leading-tight font-serif-tc">主廚推薦 Top 3</h2>
+</div>
+<div class="flex flex-col gap-5 px-4">
+<!-- Card 1: Mackerel -->
+<div class="flex flex-col items-stretch justify-start rounded-2xl shadow-lg bg-white dark:bg-card-dark overflow-hidden border border-slate-100 dark:border-white/5">
+<div class="relative w-full h-48 bg-center bg-no-repeat bg-cover" data-alt="Watercolor illustration of seared mackerel sashimi on a decorative plate" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAVshWDrXjLlOQhCemoaqxpedzB1IkLeLSJGxypNGTZ3ZYZxrWLx_dBxbLqMXdGP74ezPILJb7eBnHztLhXEw-bbh93AuGA4YODNb4_iR10lf-GOd0wNehiFBqxfON3ILDpb9X7lRffRq2lkJHz7EKvrGdvatY4zpmW8bPfCLYaaMxpaqtTHpAXjMDL5rNH4x-Bjb5rqnV_IsXKIXaacfZ1phbHglPSrY5YKx_x8ZmdBG6OSpj31xjGc_PPqtiakITP7lIAFB-l_98");'>
+<div class="absolute top-3 left-3 bg-primary text-background-dark text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                            #1 必點
+                        </div>
+<div class="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-card-dark to-transparent"></div>
+</div>
+<div class="flex flex-col p-4 -mt-6 relative z-10">
+<div class="flex justify-between items-start mb-1">
+<div>
+<p class="text-text-muted text-sm font-serif-jp mb-1">炙りシメサバ</p>
+<h3 class="text-slate-900 dark:text-white text-xl font-bold font-serif-tc leading-tight">炙燒醋醃鯖魚</h3>
+</div>
+<span class="text-lg font-bold text-primary font-display">¥850</span>
+</div>
+<p class="text-slate-600 dark:text-text-muted text-sm leading-relaxed mt-2 mb-3">
+                            經過醋漬後表面炙燒，帶有煙燻香氣，口感入口即化，酸度適中開胃。
+                        </p>
+<!-- Chips -->
+<div class="flex gap-2 flex-wrap">
+<div class="flex items-center px-3 py-1 rounded-lg bg-background-light dark:bg-white/5 border border-slate-200 dark:border-white/10">
+<span class="text-xs text-slate-700 dark:text-gray-300">#海鮮</span>
+</div>
+<div class="flex items-center px-3 py-1 rounded-lg bg-background-light dark:bg-white/5 border border-slate-200 dark:border-white/10">
+<span class="text-xs text-slate-700 dark:text-gray-300">#醋漬</span>
+</div>
+<div class="flex items-center px-3 py-1 rounded-lg bg-background-light dark:bg-white/5 border border-slate-200 dark:border-white/10">
+<span class="text-xs text-slate-700 dark:text-gray-300">#下酒菜</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 2: Karaage -->
+<div class="flex flex-col items-stretch justify-start rounded-2xl shadow-lg bg-white dark:bg-card-dark overflow-hidden border border-slate-100 dark:border-white/5">
+<div class="relative w-full h-48 bg-center bg-no-repeat bg-cover" data-alt="Watercolor illustration of crispy Japanese fried chicken with lemon wedge" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCpiZYit8KEd7eI6bnfyRthu0fn_WQeoLhwj7XaX890Dax99_zC4zOH0N9kB7Sx8VvvZ6_14pj-6PppP50qw6JlNxt9G2U9ZDxjQr6QqrUJZU22HDmDpHOEOBYuJKhT0rCkyXTliHLDknvao-TcjwesyjNEenQuzlQH1j1Gp6-oKBaffY3DVo9JHlKgN2Hg6nDV2mDOKsKEtJP5JoIpXXR_PYHUH0UZtgJDNxkoJMGXg6pi9wHHt5-ao0n89w9-O8uywDv9EfZWSh0");'>
+<div class="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-card-dark to-transparent"></div>
+</div>
+<div class="flex flex-col p-4 -mt-6 relative z-10">
+<div class="flex justify-between items-start mb-1">
+<div>
+<p class="text-text-muted text-sm font-serif-jp mb-1">若鶏の唐揚げ</p>
+<h3 class="text-slate-900 dark:text-white text-xl font-bold font-serif-tc leading-tight">招牌日式炸雞</h3>
+</div>
+<span class="text-lg font-bold text-primary font-display">¥680</span>
+</div>
+<p class="text-slate-600 dark:text-text-muted text-sm leading-relaxed mt-2 mb-3">
+                            外皮酥脆，肉汁豐富，帶有蒜味醬油香氣。搭配檸檬更清爽。
+                        </p>
+<div class="flex gap-2 flex-wrap">
+<div class="flex items-center px-3 py-1 rounded-lg bg-background-light dark:bg-white/5 border border-slate-200 dark:border-white/10">
+<span class="text-xs text-slate-700 dark:text-gray-300">#炸物</span>
+</div>
+<div class="flex items-center px-3 py-1 rounded-lg bg-background-light dark:bg-white/5 border border-slate-200 dark:border-white/10">
+<span class="text-xs text-slate-700 dark:text-gray-300">#雞肉</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Section Divider -->
+<div class="h-8 w-full"></div>
+<!-- Standard Menu List -->
+<div class="flex-1 bg-white dark:bg-[#0d1811] rounded-t-[2rem] p-6 shadow-[0_-4px_20px_rgba(0,0,0,0.2)]">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-slate-900 dark:text-white text-lg font-bold font-serif-tc">串燒與小菜 (Yakitori &amp; Sides)</h2>
+<button class="text-primary text-sm font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-base">filter_list</span>
+                    篩選
+                </button>
+</div>
+<div class="flex flex-col gap-4">
+<!-- List Item 1: Tap to visualize -->
+<div class="group flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer border-b border-dashed border-slate-200 dark:border-white/10">
+<div class="relative size-16 shrink-0 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center overflow-hidden">
+<!-- Placeholder State -->
+<span class="material-symbols-outlined text-3xl text-primary/50 group-hover:text-primary transition-colors group-hover:scale-110 duration-300">restaurant</span>
+<!-- Overlay for 'Tap' hint -->
+<div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white text-xl">visibility</span>
+</div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<span class="text-xs text-text-muted font-serif-jp">ねぎま</span>
+<span class="text-slate-900 dark:text-white font-bold font-display">¥220</span>
+</div>
+<h4 class="text-slate-900 dark:text-white text-base font-bold font-serif-tc truncate">蔥段雞肉串</h4>
+<p class="text-xs text-slate-500 dark:text-gray-500 mt-1 truncate">雞腿肉與大蔥交替串燒，醬燒風味。</p>
+</div>
+</div>
+<!-- List Item 2 -->
+<div class="group flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer border-b border-dashed border-slate-200 dark:border-white/10">
+<div class="relative size-16 shrink-0 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-3xl text-primary/50 group-hover:text-primary transition-colors group-hover:scale-110 duration-300">kebab_dining</span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<span class="text-xs text-text-muted font-serif-jp">つくね</span>
+<span class="text-slate-900 dark:text-white font-bold font-display">¥280</span>
+</div>
+<h4 class="text-slate-900 dark:text-white text-base font-bold font-serif-tc truncate">月見雞肉丸</h4>
+<p class="text-xs text-slate-500 dark:text-gray-500 mt-1 truncate">軟骨雞肉丸，附生蛋黃沾醬。</p>
+</div>
+</div>
+<!-- List Item 3 with connectivity warning simulation or loading -->
+<div class="group flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer border-b border-dashed border-slate-200 dark:border-white/10">
+<div class="relative size-16 shrink-0 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-3xl text-primary/50 animate-pulse">downloading</span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<span class="text-xs text-text-muted font-serif-jp">冷奴</span>
+<span class="text-slate-900 dark:text-white font-bold font-display">¥350</span>
+</div>
+<h4 class="text-slate-900 dark:text-white text-base font-bold font-serif-tc truncate">日式冷豆腐</h4>
+<p class="text-xs text-slate-500 dark:text-gray-500 mt-1 truncate">搭配薑末、蔥花與柴魚片。</p>
+</div>
+</div>
+<!-- List Item 4 -->
+<div class="group flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer">
+<div class="relative size-16 shrink-0 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-3xl text-primary/50 group-hover:text-primary transition-colors">liquor</span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex justify-between items-start">
+<span class="text-xs text-text-muted font-serif-jp">日本酒</span>
+<span class="text-slate-900 dark:text-white font-bold font-display">¥900~</span>
+</div>
+<h4 class="text-slate-900 dark:text-white text-base font-bold font-serif-tc truncate">精選地酒 (一合)</h4>
+<p class="text-xs text-slate-500 dark:text-gray-500 mt-1 truncate">請詢問今日推薦酒單。</p>
+</div>
+</div>
+</div>
+<div class="mt-8 text-center">
+<button class="w-full py-3 rounded-xl border border-dashed border-slate-300 dark:border-white/20 text-slate-500 dark:text-gray-400 text-sm font-medium hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                    載入更多菜單...
+                 </button>
+</div>
+<!-- Bottom spacing for scroll -->
+<div class="h-20"></div>
+</div>
+<!-- Floating Action Button / Bottom Bar -->
+<div class="fixed bottom-6 right-6 z-50">
+<button class="flex items-center justify-center size-14 rounded-full bg-primary text-background-dark shadow-[0_0_15px_rgba(19,236,91,0.4)] hover:scale-105 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-2xl">auto_awesome</span>
+</button>
+</div>
+<!-- Bottom Tab Nav (Optional decoration for app feel) -->
+<div class="fixed bottom-0 w-full max-w-md bg-white/90 dark:bg-[#102216]/90 backdrop-blur-lg border-t border-slate-200 dark:border-white/5 h-16 flex items-center justify-around px-2 z-40">
+<div class="flex flex-col items-center gap-1 opacity-100 text-primary">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="text-[10px] font-bold">菜單</span>
+</div>
+<div class="flex flex-col items-center gap-1 opacity-50 hover:opacity-100 text-slate-800 dark:text-white transition-opacity">
+<span class="material-symbols-outlined">translate</span>
+<span class="text-[10px] font-medium">翻譯紀錄</span>
+</div>
+<div class="flex flex-col items-center gap-1 opacity-50 hover:opacity-100 text-slate-800 dark:text-white transition-opacity">
+<span class="material-symbols-outlined">favorite</span>
+<span class="text-[10px] font-medium">收藏</span>
+</div>
+</div>
+</div>
+</body></html>
