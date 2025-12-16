@@ -19,8 +19,10 @@ from .gemini_client import GeminiClient
 from .image_store import ImageStore
 from .schemas import MenuDataEvent, MenuItem, ScanRequest, VlmMenuItem, VlmMenuResponse
 from .sse import sse_event
+from .jobs import router as jobs_router
 
 app = FastAPI(title="Omakase API", version="0.1.0")
+app.include_router(jobs_router)
 
 logger = logging.getLogger(__name__)
 

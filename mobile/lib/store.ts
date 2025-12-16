@@ -5,6 +5,11 @@ interface AppState {
   session: ScanSession;
   selectedDish: MenuItem | null;
 
+  // Resumable scan state
+  jobId: string | null;
+  lastEventId: string | null;
+  gcsUri: string | null;
+
   // Actions
   resetSession: () => void;
   setOriginalImage: (uri: string) => void;
@@ -14,6 +19,12 @@ interface AppState {
   setError: (code: string, message: string) => void;
   setDone: (elapsedMs: number, usedCache: boolean) => void;
   selectDish: (dish: MenuItem | null) => void;
+
+  // Resumable scan actions
+  setJobId: (jobId: string) => void;
+  setLastEventId: (eventId: string) => void;
+  setGcsUri: (gcsUri: string) => void;
+  clearJob: () => void;
 }
 
 const initialSession: ScanSession = {
@@ -28,11 +39,17 @@ const initialSession: ScanSession = {
 export const useAppStore = create<AppState>((set) => ({
   session: { ...initialSession },
   selectedDish: null,
+  jobId: null,
+  lastEventId: null,
+  gcsUri: null,
 
   resetSession: () =>
     set({
       session: { ...initialSession },
       selectedDish: null,
+      jobId: null,
+      lastEventId: null,
+      gcsUri: null,
     }),
 
   setOriginalImage: (uri: string) =>
@@ -108,4 +125,10 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   selectDish: (dish) => set({ selectedDish: dish }),
+
+  // Resumable scan actions
+  setJobId: (jobId) => set({ jobId }),
+  setLastEventId: (eventId) => set({ lastEventId: eventId }),
+  setGcsUri: (gcsUri) => set({ gcsUri }),
+  clearJob: () => set({ jobId: null, lastEventId: null, gcsUri: null }),
 }));

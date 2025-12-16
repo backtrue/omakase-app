@@ -61,3 +61,27 @@ export interface SSEDoneEvent {
     unknown_items_count: number;
   };
 }
+
+// Resumable scan API types
+export interface SignedUrlResponse {
+  upload_url: string;
+  gcs_uri: string;
+  expires_at: string;
+}
+
+export interface CreateJobResponse {
+  job_id: string;
+  status: string;
+}
+
+export interface JobSnapshot {
+  job_id: string;
+  status: string;
+  items: MenuItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SSEHeartbeatEvent {
+  ts: string;
+}

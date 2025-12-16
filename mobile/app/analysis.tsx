@@ -1,7 +1,9 @@
-import { View, Text, Animated } from "react-native";
+import { View, Text, Animated, AppState, AppStateStatus } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useRef } from "react";
+import { useRouter } from "expo-router";
 import { useAppStore } from "@/lib/store";
+import { streamJobEvents, getJobSnapshot, JobEventCallbacks } from "@/lib/api";
 
 const STEPS = [
   { key: "scanning", label: "辨識文字" },
@@ -18,9 +20,115 @@ const DID_YOU_KNOW = [
 ];
 
 export default function AnalysisScreen() {
-  const { session } = useAppStore();
+  const router = useRouter();
+  const {
+    session,
+    jobId,
+    lastEventId,
+    setStatus,
+    setMenuItems,
+    updateItemImage,
+    setError,
+    setDone,
+    setLastEventId,
+  } = useAppStore();
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const didYouKnow = useRef(DID_YOU_KNOW[Math.floor(Math.random() * DID_YOU_KNOW.length)]).current;
+  const appStateRef = useRef(AppState.currentState);
+  const abortRef = useRef<{ abort: () => void } | null>(null);
+
+  const createEventCallbacks = (): JobEventCallbacks => ({
+    onStatus: (event) => {
+      const stepMap: Record<string, { status: any; msg: string }> = {
+        downloading: { status: "scanning", msg: "正在下載圖片..." },
+        analyzing: { status: "analyzing", msg: event.message },
+        ocr: { status: "scanning", msg: "正在辨識菜單文字..." },
+        translate: { status: "translating", msg: "正在翻譯菜單..." },
+        generating_images: { status: "generating_images", msg: "正在生成菜品圖片..." },
+      };
+      const mapped = stepMap[event.step] || { status: "analyzing", msg: event.message };
+      setStatus(mapped.status, mapped.msg, event.progress);
+    },
+    onMenuData: (event) => {
+      if (__DEV__) {
+        console.log("[SSE] menu_data received:", event.items.length, "items");
+      }
+      setMenuItems(event.items, event.is_partial ?? false);
+    },
+    onImageUpdate: (event) => {
+      if (__DEV__) {
+        console.log("[SSE] image_update:", event.item_id, event.image_status);
+      }
+      updateItemImage(event.item_id, event.image_status, event.image_url);
+    },
+    onError: (event) => {
+      setError(event.code, event.message);
+      router.replace("/");
+    },
+    onDone: (event) => {
+      setDone(event.summary.elapsed_ms, event.summary.used_cache);
+      if (event.status === "completed" || event.status === "partial") {
+        router.replace("/menu");
+      }
+    },
+    onEventId: (eventId) => {
+      setLastEventId(eventId);
+    },
+    onHeartbeat: () => {},
+  });
+
+  const reconnectToJob = async () => {
+    if (!jobId) return;
+
+    if (__DEV__) {
+      console.log("[AppState] Reconnecting to job:", jobId, "lastEventId:", lastEventId);
+    }
+
+    // First, check job status via snapshot
+    try {
+      const snapshot = await getJobSnapshot(jobId);
+
+      if (snapshot.status === "completed" || snapshot.status === "failed") {
+        // Job already finished while we were in background
+        if (snapshot.status === "completed" && snapshot.items.length > 0) {
+          setMenuItems(snapshot.items, false);
+          setStatus("completed", "完成", 100);
+          router.replace("/menu");
+        } else {
+          setError("JOB_FAILED", "掃描任務失敗");
+          router.replace("/");
+        }
+        return;
+      }
+
+      // Job still running, reconnect to SSE stream
+      abortRef.current?.abort();
+      abortRef.current = streamJobEvents(jobId, createEventCallbacks(), lastEventId || undefined);
+
+    } catch (error) {
+      console.error("[AppState] Failed to reconnect:", error);
+      // Don't show error, just keep showing current state
+    }
+  };
+
+  useEffect(() => {
+    // Handle app state changes (background/foreground)
+    const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === "active") {
+        // App came to foreground - reconnect to job if we have one
+        if (__DEV__) {
+          console.log("[AppState] App came to foreground, jobId:", jobId);
+        }
+        reconnectToJob();
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+      abortRef.current?.abort();
+    };
+  }, [jobId, lastEventId]);
 
   useEffect(() => {
     const animation = Animated.loop(

@@ -2,17 +2,36 @@ import { View, Text, TouchableOpacity, Image, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAppStore } from "@/lib/store";
 import { preprocessImage } from "@/lib/imageUtils";
-import { startScan } from "@/lib/api";
-import { useEffect, useState } from "react";
+import {
+  getSignedUploadUrl,
+  uploadToGCS,
+  createScanJob,
+  streamJobEvents,
+  JobEventCallbacks,
+} from "@/lib/api";
+import { useEffect, useState, useRef } from "react";
 
 export default function ScanScreen() {
   const router = useRouter();
-  const { resetSession, setOriginalImage, setStatus, setMenuItems, updateItemImage, setError, setDone } = useAppStore();
+  const {
+    resetSession,
+    setOriginalImage,
+    setStatus,
+    setMenuItems,
+    updateItemImage,
+    setError,
+    setDone,
+    setJobId,
+    setLastEventId,
+    setGcsUri,
+  } = useAppStore();
   const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
   const [libraryPermission, setLibraryPermission] = useState<boolean | null>(null);
+  const abortRef = useRef<{ abort: () => void } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -21,53 +40,99 @@ export default function ScanScreen() {
       setCameraPermission(cameraResult.status === "granted");
       setLibraryPermission(libraryResult.status === "granted");
     })();
+
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
+
+  const createEventCallbacks = (): JobEventCallbacks => ({
+    onStatus: (event) => {
+      const stepMap: Record<string, { status: any; msg: string }> = {
+        downloading: { status: "scanning", msg: "正在下載圖片..." },
+        analyzing: { status: "analyzing", msg: event.message },
+        ocr: { status: "scanning", msg: "正在辨識菜單文字..." },
+        translate: { status: "translating", msg: "正在翻譯菜單..." },
+        generating_images: { status: "generating_images", msg: "正在生成菜品圖片..." },
+      };
+      const mapped = stepMap[event.step] || { status: "analyzing", msg: event.message };
+      setStatus(mapped.status, mapped.msg, event.progress);
+    },
+    onMenuData: (event) => {
+      if (__DEV__) {
+        console.log("[SSE] menu_data received:", event.items.length, "items, is_partial:", event.is_partial);
+      }
+      setMenuItems(event.items, event.is_partial ?? false);
+    },
+    onImageUpdate: (event) => {
+      if (__DEV__) {
+        console.log("[SSE] image_update:", event.item_id, event.image_status, event.image_url);
+      }
+      updateItemImage(event.item_id, event.image_status, event.image_url);
+    },
+    onError: (event) => {
+      if (event.recoverable) {
+        // Recoverable error - could retry, but for now just show alert
+        console.warn("[SSE] Recoverable error:", event.code, event.message);
+      }
+      setError(event.code, event.message);
+      Alert.alert("錯誤", event.message, [
+        { text: "確定", onPress: () => router.replace("/") },
+      ]);
+    },
+    onDone: (event) => {
+      setDone(event.summary.elapsed_ms, event.summary.used_cache);
+      if (event.status === "completed" || event.status === "partial") {
+        router.replace("/menu");
+      }
+    },
+    onEventId: (eventId) => {
+      setLastEventId(eventId);
+    },
+    onHeartbeat: () => {
+      // Keep-alive, no action needed
+    },
+  });
 
   const handleImageSelected = async (uri: string) => {
     try {
       resetSession();
       setOriginalImage(uri);
-      setStatus("scanning", "正在處理圖片...", 0);
+      setStatus("scanning", "正在上傳圖片...", 0);
       router.push("/analysis");
 
+      // Step 1: Preprocess image
       const base64 = await preprocessImage(uri);
-      
-      await startScan(base64, "繁體中文", {
-        onStatus: (event) => {
-          const stepMap: Record<string, { status: typeof setStatus extends (s: infer S, ...args: any[]) => any ? S : never; msg: string }> = {
-            ocr: { status: "scanning", msg: "正在辨識菜單文字..." },
-            translate: { status: "translating", msg: "正在翻譯菜單..." },
-            image_gen: { status: "generating_images", msg: "正在生成菜品圖片..." },
-          };
-          const mapped = stepMap[event.step] || { status: "analyzing", msg: event.message };
-          setStatus(mapped.status as any, mapped.msg, event.progress);
-        },
-        onMenuData: (event) => {
-          if (__DEV__) {
-            console.log("[SSE] menu_data received:", event.items.length, "items, is_partial:", event.is_partial);
-            console.log("[SSE] First item sample:", JSON.stringify(event.items[0]));
-          }
-          setMenuItems(event.items, event.is_partial ?? false);
-        },
-        onImageUpdate: (event) => {
-          if (__DEV__) {
-            console.log("[SSE] image_update:", event.item_id, event.image_status, event.image_url);
-          }
-          updateItemImage(event.item_id, event.image_status, event.image_url);
-        },
-        onError: (event) => {
-          setError(event.code, event.message);
-          Alert.alert("錯誤", event.message, [
-            { text: "確定", onPress: () => router.replace("/") },
-          ]);
-        },
-        onDone: (event) => {
-          setDone(event.summary.elapsed_ms, event.summary.used_cache);
-          if (event.status === "completed" || event.status === "partial") {
-            router.replace("/menu");
-          }
-        },
-      });
+
+      // Step 2: Get signed URL for upload
+      setStatus("scanning", "正在準備上傳...", 10);
+      const signedUrlResponse = await getSignedUploadUrl("image/jpeg");
+
+      // Step 3: Convert base64 to blob and upload to GCS
+      setStatus("scanning", "正在上傳圖片...", 20);
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: "image/jpeg" });
+
+      await uploadToGCS(signedUrlResponse.upload_url, blob, "image/jpeg");
+      setGcsUri(signedUrlResponse.gcs_uri);
+
+      // Step 4: Create scan job
+      setStatus("scanning", "正在建立掃描任務...", 30);
+      const jobResponse = await createScanJob(signedUrlResponse.gcs_uri, "繁體中文");
+      setJobId(jobResponse.job_id);
+
+      if (__DEV__) {
+        console.log("[Scan] Job created:", jobResponse.job_id);
+      }
+
+      // Step 5: Stream events from job
+      setStatus("analyzing", "主廚正在解讀手寫字...", 40);
+      abortRef.current = streamJobEvents(jobResponse.job_id, createEventCallbacks());
+
     } catch (error) {
       console.error("Scan error:", error);
       setError("SCAN_FAILED", "掃描失敗，請重試");
