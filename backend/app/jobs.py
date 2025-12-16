@@ -121,6 +121,10 @@ class RunScanTaskPayload(BaseModel):
 @router.post("/api/v1/uploads/signed-url", response_model=SignedUrlResponse)
 async def create_signed_upload_url(req: SignedUrlRequest) -> SignedUrlResponse:
     """Generate a signed URL for direct GCS upload from mobile client."""
+    import google.auth
+    from google.auth.transport import requests as auth_requests
+    from google.auth import compute_engine
+
     client = _get_storage_client()
     bucket = client.bucket(_GCS_BUCKET)
 
@@ -132,12 +136,32 @@ async def create_signed_upload_url(req: SignedUrlRequest) -> SignedUrlResponse:
     blob = bucket.blob(object_name)
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
 
-    signed_url = blob.generate_signed_url(
-        version="v4",
-        expiration=expires_at,
-        method="PUT",
-        content_type=req.content_type,
-    )
+    # Get credentials and create signing credentials for Cloud Run environment
+    credentials, project = google.auth.default()
+
+    # If running on Cloud Run with Compute Engine credentials, use IAM signing
+    if hasattr(credentials, "service_account_email"):
+        # Refresh credentials to get access token
+        auth_request = auth_requests.Request()
+        credentials.refresh(auth_request)
+
+        # Use the service account email and access token for signing
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=expires_at,
+            method="PUT",
+            content_type=req.content_type,
+            service_account_email=credentials.service_account_email,
+            access_token=credentials.token,
+        )
+    else:
+        # Local development with service account key
+        signed_url = blob.generate_signed_url(
+            version="v4",
+            expiration=expires_at,
+            method="PUT",
+            content_type=req.content_type,
+        )
 
     gcs_uri = f"gs://{_GCS_BUCKET}/{object_name}"
 
