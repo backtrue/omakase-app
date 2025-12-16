@@ -1,19 +1,19 @@
-import { View, Text, TouchableOpacity, Image, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAppStore } from "@/lib/store";
-import { preprocessImage } from "@/lib/imageUtils";
 import {
   getSignedUploadUrl,
-  uploadToGCS,
+  uploadToGCSFromUri,
   createScanJob,
   streamJobEvents,
   JobEventCallbacks,
 } from "@/lib/api";
-import { useEffect, useState, useRef } from "react";
+import { registerForPushNotifications } from "@/lib/notifications";
+import { useEffect, useRef } from "react";
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -28,17 +28,26 @@ export default function ScanScreen() {
     setJobId,
     setLastEventId,
     setGcsUri,
+    pushToken,
+    setPushToken,
   } = useAppStore();
-  const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
-  const [libraryPermission, setLibraryPermission] = useState<boolean | null>(null);
+
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
   const abortRef = useRef<{ abort: () => void } | null>(null);
 
   useEffect(() => {
     (async () => {
-      const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
-      const libraryResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      setCameraPermission(cameraResult.status === "granted");
-      setLibraryPermission(libraryResult.status === "granted");
+      // Request camera permission if not granted
+      if (!permission?.granted) {
+        await requestPermission();
+      }
+
+      // Register for push notifications
+      const token = await registerForPushNotifications();
+      if (token) {
+        setPushToken(token);
+      }
     })();
 
     return () => {
@@ -72,8 +81,10 @@ export default function ScanScreen() {
     },
     onError: (event) => {
       if (event.recoverable) {
-        // Recoverable error - could retry, but for now just show alert
-        console.warn("[SSE] Recoverable error:", event.code, event.message);
+        if (__DEV__) {
+          console.warn("[SSE] Recoverable error:", event.code, event.message);
+        }
+        return;
       }
       setError(event.code, event.message);
       Alert.alert("錯誤", event.message, [
@@ -89,40 +100,31 @@ export default function ScanScreen() {
     onEventId: (eventId) => {
       setLastEventId(eventId);
     },
-    onHeartbeat: () => {
-      // Keep-alive, no action needed
-    },
+    onHeartbeat: () => {},
   });
 
   const handleImageSelected = async (uri: string) => {
     try {
       resetSession();
       setOriginalImage(uri);
-      setStatus("scanning", "正在上傳圖片...", 0);
+      setStatus("scanning", "正在處理圖片...", 0);
       router.push("/analysis");
 
-      // Step 1: Preprocess image
-      const base64 = await preprocessImage(uri);
+      // Step 1: Preprocess image and get the processed file URI
+      const { base64, uri: processedUri } = await preprocessImageWithUri(uri);
 
       // Step 2: Get signed URL for upload
       setStatus("scanning", "正在準備上傳...", 10);
       const signedUrlResponse = await getSignedUploadUrl("image/jpeg");
 
-      // Step 3: Convert base64 to blob and upload to GCS
+      // Step 3: Upload image to GCS
       setStatus("scanning", "正在上傳圖片...", 20);
-      const binaryString = atob(base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: "image/jpeg" });
-
-      await uploadToGCS(signedUrlResponse.upload_url, blob, "image/jpeg");
+      await uploadToGCSFromUri(signedUrlResponse.upload_url, processedUri, "image/jpeg");
       setGcsUri(signedUrlResponse.gcs_uri);
 
-      // Step 4: Create scan job
+      // Step 4: Create scan job (with push token for background notification)
       setStatus("scanning", "正在建立掃描任務...", 30);
-      const jobResponse = await createScanJob(signedUrlResponse.gcs_uri, "繁體中文");
+      const jobResponse = await createScanJob(signedUrlResponse.gcs_uri, "繁體中文", pushToken);
       setJobId(jobResponse.job_id);
 
       if (__DEV__) {
@@ -143,24 +145,26 @@ export default function ScanScreen() {
   };
 
   const takePhoto = async () => {
-    if (!cameraPermission) {
-      Alert.alert("需要相機權限", "請在設定中允許相機存取");
-      return;
-    }
+    if (!cameraRef.current) return;
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      quality: 1,
-      allowsEditing: false,
-    });
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 1,
+        skipProcessing: false,
+      });
 
-    if (!result.canceled && result.assets[0]) {
-      handleImageSelected(result.assets[0].uri);
+      if (photo?.uri) {
+        handleImageSelected(photo.uri);
+      }
+    } catch (error) {
+      console.error("Failed to take photo:", error);
+      Alert.alert("錯誤", "拍照失敗，請重試");
     }
   };
 
   const pickFromLibrary = async () => {
-    if (!libraryPermission) {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
       Alert.alert("需要相簿權限", "請在設定中允許相簿存取");
       return;
     }
@@ -176,43 +180,216 @@ export default function ScanScreen() {
     }
   };
 
+  // Show permission request screen if not granted
+  if (!permission?.granted) {
+    return (
+      <SafeAreaView className="flex-1 bg-black items-center justify-center">
+        <MaterialIcons name="camera-alt" size={64} color="rgba(255,255,255,0.5)" />
+        <Text className="text-white/70 text-lg mt-4 text-center px-8">
+          需要相機權限才能掃描菜單
+        </Text>
+        <TouchableOpacity
+          onPress={requestPermission}
+          className="mt-6 px-8 py-3 bg-white rounded-full"
+        >
+          <Text className="text-black font-semibold">允許相機存取</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <View className="flex-1 items-center justify-center">
-        {/* Camera Preview Placeholder */}
-        <View className="w-full aspect-[3/4] bg-neutral-900 items-center justify-center">
-          <View className="w-[80%] aspect-square border-2 border-white/30 rounded-lg items-center justify-center">
-            <MaterialIcons name="restaurant-menu" size={64} color="rgba(255,255,255,0.3)" />
-            <Text className="text-white/50 mt-4 text-center px-8">
-              將菜單放入框內{"\n"}或從相簿選取
-            </Text>
+    <View style={styles.container}>
+      {/* Live Camera Preview */}
+      <CameraView
+        ref={cameraRef}
+        style={styles.camera}
+        facing="back"
+      />
+
+      {/* Overlay with scan frame - positioned absolutely on top of camera */}
+      <SafeAreaView style={styles.overlay}>
+        {/* Top area */}
+        <View style={styles.topOverlay} />
+
+        {/* Middle area with scan frame */}
+        <View style={styles.middleRow}>
+          <View style={styles.sideOverlay} />
+          <View style={styles.scanFrame}>
+            <View style={styles.cornerTL} />
+            <View style={styles.cornerTR} />
+            <View style={styles.cornerBL} />
+            <View style={styles.cornerBR} />
           </View>
+          <View style={styles.sideOverlay} />
         </View>
 
-        {/* Controls */}
-        <View className="absolute bottom-0 left-0 right-0 pb-12 pt-8 bg-black">
-          <View className="flex-row items-center justify-center gap-12">
+        {/* Hint text */}
+        <View style={styles.hintContainer}>
+          <Text style={styles.hintText}>將菜單對準框內</Text>
+        </View>
+
+        {/* Bottom controls */}
+        <View style={styles.controls}>
+          <View style={styles.controlsRow}>
             {/* Gallery Button */}
             <TouchableOpacity
               onPress={pickFromLibrary}
-              className="w-14 h-14 rounded-full bg-white/10 items-center justify-center"
+              style={styles.galleryButton}
             >
               <MaterialIcons name="photo-library" size={28} color="white" />
             </TouchableOpacity>
 
             {/* Capture Button */}
-            <TouchableOpacity
-              onPress={takePhoto}
-              className="w-20 h-20 rounded-full bg-white items-center justify-center"
-            >
-              <View className="w-16 h-16 rounded-full border-4 border-black" />
+            <TouchableOpacity onPress={takePhoto} style={styles.captureButton}>
+              <View style={styles.captureButtonInner} />
             </TouchableOpacity>
 
             {/* Placeholder for symmetry */}
-            <View className="w-14 h-14" />
+            <View style={styles.placeholder} />
           </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "black",
+  },
+  camera: {
+    flex: 1,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  topOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  middleRow: {
+    flexDirection: "row",
+  },
+  sideOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  scanFrame: {
+    width: 280,
+    height: 380,
+    position: "relative",
+  },
+  cornerTL: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 40,
+    height: 40,
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: "white",
+    borderTopLeftRadius: 8,
+  },
+  cornerTR: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderTopWidth: 3,
+    borderRightWidth: 3,
+    borderColor: "white",
+    borderTopRightRadius: 8,
+  },
+  cornerBL: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    width: 40,
+    height: 40,
+    borderBottomWidth: 3,
+    borderLeftWidth: 3,
+    borderColor: "white",
+    borderBottomLeftRadius: 8,
+  },
+  cornerBR: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderBottomWidth: 3,
+    borderRightWidth: 3,
+    borderColor: "white",
+    borderBottomRightRadius: 8,
+  },
+  hintContainer: {
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  hintText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 16,
+  },
+  controls: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+  },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 48,
+  },
+  galleryButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  captureButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "white",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  captureButtonInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 4,
+    borderColor: "black",
+  },
+  placeholder: {
+    width: 56,
+    height: 56,
+  },
+});
+
+// Helper function that returns both base64 and the processed file URI
+async function preprocessImageWithUri(uri: string): Promise<{ base64: string; uri: string }> {
+  const ImageManipulator = await import("expo-image-manipulator");
+
+  const manipulated = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 2048 } }],
+    {
+      compress: 0.85,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    }
+  );
+
+  return {
+    base64: manipulated.base64 || "",
+    uri: manipulated.uri,
+  };
 }

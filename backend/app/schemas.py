@@ -27,6 +27,7 @@ class MenuItem(BaseModel):
     image_status: ImageStatus
     image_prompt: str
     romanji: str = ""
+    reading: str = ""  # Japanese reading in hiragana/katakana
 
 
 class MenuDataEvent(BaseModel):
@@ -43,6 +44,7 @@ class VlmMenuItem(BaseModel):
     is_top3: Optional[bool] = Field(default=False)
     image_prompt: Optional[str] = Field(default="")
     romanji: Optional[str] = Field(default="")
+    reading: Optional[str] = Field(default="")  # Full reading in hiragana or katakana
 
 
 class VlmMenuResponse(BaseModel):

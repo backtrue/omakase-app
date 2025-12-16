@@ -31,25 +31,59 @@ export async function getSignedUploadUrl(contentType: string = "image/jpeg"): Pr
   return response.json();
 }
 
-export async function uploadToGCS(uploadUrl: string, imageBlob: Blob, contentType: string): Promise<void> {
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: imageBlob,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to upload to GCS: ${response.status}`);
+export async function uploadToGCSFromUri(
+  uploadUrl: string,
+  fileUri: string,
+  contentType: string
+): Promise<void> {
+  // Read file as base64 and upload using fetch with XMLHttpRequest
+  const { File } = await import("expo-file-system/next");
+  
+  const file = new File(fileUri);
+  const base64Data = await file.base64();
+  
+  // Convert base64 to Uint8Array for upload
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
   }
+
+  // Use XMLHttpRequest to send binary data
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl, true);
+    xhr.setRequestHeader("Content-Type", contentType);
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Failed to upload to GCS: ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Network error during upload"));
+    };
+
+    // Send as ArrayBuffer
+    xhr.send(bytes.buffer);
+  });
 }
 
-export async function createScanJob(gcsUri: string, language: string = "繁體中文"): Promise<CreateJobResponse> {
+export async function createScanJob(
+  gcsUri: string,
+  language: string = "繁體中文",
+  pushToken?: string | null
+): Promise<CreateJobResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/scan/jobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       gcs_uri: gcsUri,
       user_preferences: { language },
+      push_token: pushToken || undefined,
     }),
   });
 
@@ -94,65 +128,86 @@ export function streamJobEvents(
   xhr.open("GET", url, true);
   xhr.setRequestHeader("Accept", "text/event-stream");
 
-  let buffer = "";
+  let processedLength = 0;
   let settled = false;
 
   xhr.onprogress = () => {
-    const newData = xhr.responseText.substring(buffer.length);
-    buffer = xhr.responseText;
+    const fullText = xhr.responseText;
+    const newData = fullText.substring(processedLength);
+    
+    // Find complete events (ending with double newline)
+    const lastDoubleNewline = newData.lastIndexOf("\n\n");
+    if (lastDoubleNewline === -1) return; // No complete events yet
+    
+    const completeData = newData.substring(0, lastDoubleNewline + 2);
+    processedLength += completeData.length;
 
-    const lines = newData.split("\n");
-    let currentEventId = "";
-    let currentEvent = "";
-    let currentData = "";
+    // Parse SSE events - split by double newline (event separator)
+    const events = completeData.split("\n\n");
 
-    for (const line of lines) {
-      if (line.startsWith("id: ")) {
-        currentEventId = line.substring(4).trim();
-      } else if (line.startsWith("event: ")) {
-        currentEvent = line.substring(7).trim();
-      } else if (line.startsWith("data: ")) {
-        currentData = line.substring(6).trim();
+    for (const eventBlock of events) {
+      if (!eventBlock.trim()) continue;
 
-        if (currentEvent && currentData) {
-          try {
-            const parsed = JSON.parse(currentData);
+      const lines = eventBlock.split("\n");
+      let currentEventId = "";
+      let currentEvent = "";
+      let currentData = "";
 
-            if (currentEventId) {
-              callbacks.onEventId?.(currentEventId);
-            }
+      for (const line of lines) {
+        if (line.startsWith("id: ")) {
+          currentEventId = line.substring(4).trim();
+        } else if (line.startsWith("event: ")) {
+          currentEvent = line.substring(7).trim();
+        } else if (line.startsWith("data: ")) {
+          currentData += line.substring(6);
+        } else if (line.startsWith("data:")) {
+          // data: with no space after colon
+          currentData += line.substring(5);
+        }
+      }
 
-            switch (currentEvent) {
-              case "status":
-                callbacks.onStatus?.(parsed as SSEStatusEvent);
-                break;
-              case "menu_data":
-                callbacks.onMenuData?.(parsed as SSEMenuDataEvent);
-                break;
-              case "image_update":
-                callbacks.onImageUpdate?.(parsed as SSEImageUpdateEvent);
-                break;
-              case "error":
-                callbacks.onError?.(parsed as SSEErrorEvent);
-                settled = true;
-                break;
-              case "done":
-                callbacks.onDone?.(parsed as SSEDoneEvent);
-                settled = true;
-                break;
-              case "heartbeat":
-                callbacks.onHeartbeat?.(parsed as SSEHeartbeatEvent);
-                break;
-              case "timeout":
-                // Server timeout, client should reconnect
-                break;
-            }
-          } catch (e) {
-            console.warn("Failed to parse SSE data:", currentData, e);
-          }
-          currentEventId = "";
-          currentEvent = "";
-          currentData = "";
+      if (!currentEvent || !currentData) continue;
+
+      try {
+        const parsed = JSON.parse(currentData);
+
+        if (currentEventId) {
+          callbacks.onEventId?.(currentEventId);
+        }
+
+        if (__DEV__) {
+          const itemCount = parsed.items?.length;
+          console.log("[SSE] Event:", currentEvent, "id:", currentEventId, itemCount ? `items:${itemCount}` : "");
+        }
+
+        switch (currentEvent) {
+          case "status":
+            callbacks.onStatus?.(parsed as SSEStatusEvent);
+            break;
+          case "menu_data":
+            callbacks.onMenuData?.(parsed as SSEMenuDataEvent);
+            break;
+          case "image_update":
+            callbacks.onImageUpdate?.(parsed as SSEImageUpdateEvent);
+            break;
+          case "error":
+            callbacks.onError?.(parsed as SSEErrorEvent);
+            settled = true;
+            break;
+          case "done":
+            callbacks.onDone?.(parsed as SSEDoneEvent);
+            settled = true;
+            break;
+          case "heartbeat":
+            callbacks.onHeartbeat?.(parsed as SSEHeartbeatEvent);
+            break;
+          case "timeout":
+            // Server timeout, client should reconnect
+            break;
+        }
+      } catch (e) {
+        if (__DEV__) {
+          console.warn("[SSE] Failed to parse:", currentEvent, currentData.substring(0, 100), e);
         }
       }
     }

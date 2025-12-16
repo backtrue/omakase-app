@@ -9,6 +9,7 @@ interface AppState {
   jobId: string | null;
   lastEventId: string | null;
   gcsUri: string | null;
+  pushToken: string | null;
 
   // Actions
   resetSession: () => void;
@@ -24,6 +25,7 @@ interface AppState {
   setJobId: (jobId: string) => void;
   setLastEventId: (eventId: string) => void;
   setGcsUri: (gcsUri: string) => void;
+  setPushToken: (token: string | null) => void;
   clearJob: () => void;
 }
 
@@ -42,6 +44,7 @@ export const useAppStore = create<AppState>((set) => ({
   jobId: null,
   lastEventId: null,
   gcsUri: null,
+  pushToken: null,
 
   resetSession: () =>
     set({
@@ -130,5 +133,6 @@ export const useAppStore = create<AppState>((set) => ({
   setJobId: (jobId) => set({ jobId }),
   setLastEventId: (eventId) => set({ lastEventId: eventId }),
   setGcsUri: (gcsUri) => set({ gcsUri }),
+  setPushToken: (token) => set({ pushToken: token }),
   clearJob: () => set({ jobId: null, lastEventId: null, gcsUri: null }),
 }));

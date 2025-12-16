@@ -62,6 +62,13 @@ export default function AnalysisScreen() {
       updateItemImage(event.item_id, event.image_status, event.image_url);
     },
     onError: (event) => {
+      if (event.recoverable) {
+        // Recoverable errors - don't navigate away, AppState will reconnect
+        if (__DEV__) {
+          console.warn("[SSE] Recoverable error:", event.code, event.message);
+        }
+        return;
+      }
       setError(event.code, event.message);
       router.replace("/");
     },

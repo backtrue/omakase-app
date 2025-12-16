@@ -8,6 +8,7 @@ export interface MenuItem {
   image_url?: string;
   image_status: "pending" | "generating" | "ready" | "none" | "failed";
   romanji?: string;
+  reading?: string;  // Japanese reading in hiragana/katakana
 }
 
 export interface ScanSession {

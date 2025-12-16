@@ -112,14 +112,14 @@ export default function DishScreen() {
         {/* Content */}
         <View className="p-6">
           {/* Japanese Name */}
-          <Text className="text-3xl font-bold text-neutral-900 mb-2">
+          <Text className="text-3xl font-bold text-neutral-900 mb-1">
             {selectedDish.original_name}
           </Text>
 
-          {/* Romanji */}
-          {selectedDish.romanji && (
+          {/* Reading (Furigana) */}
+          {selectedDish.reading && (
             <Text className="text-lg text-neutral-500 mb-4">
-              {selectedDish.romanji}
+              {selectedDish.reading}
             </Text>
           )}
 

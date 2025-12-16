@@ -29,10 +29,10 @@ function MenuItemCard({ item, onPress }: { item: MenuItem; onPress: () => void }
       {/* Content */}
       <View className="flex-1 justify-center">
         <Text className="text-lg font-semibold text-neutral-900 mb-1" numberOfLines={1}>
-          {item.translated_name || item.original_name}
-        </Text>
-        <Text className="text-sm text-neutral-500 mb-2" numberOfLines={1}>
           {item.original_name}
+        </Text>
+        <Text className="text-sm text-neutral-500 mb-1" numberOfLines={1}>
+          {item.translated_name || "翻譯中..."}
         </Text>
         {item.tags && item.tags.length > 0 && (
           <View className="flex-row flex-wrap gap-1">
@@ -70,10 +70,10 @@ function Top3Card({ item, onPress }: { item: MenuItem; onPress: () => void }) {
       </View>
       <View className="p-3">
         <Text className="font-semibold text-neutral-900 mb-1" numberOfLines={1}>
-          {item.translated_name || item.original_name}
+          {item.original_name}
         </Text>
         <Text className="text-xs text-neutral-500" numberOfLines={1}>
-          {item.original_name}
+          {item.translated_name || "翻譯中..."}
         </Text>
       </View>
     </TouchableOpacity>

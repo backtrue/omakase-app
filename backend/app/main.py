@@ -81,6 +81,10 @@ def _vlm_prompt(language: str) -> str:
         "5) 推薦：在不影響完整性的前提下，從已列出的菜色中挑 3 個最推薦的標記 is_top3=true，其餘為 false。\n"
         "6) 內容精簡：description 請控制在 25 字以內；tags 最多 3 個；image_prompt 若提供請用固定模板："
         "Japanese watercolor illustration, hand-drawn style, warm atmosphere, studio ghibli food style, white background. Dish: <ENGLISH NAME>。\n"
+        "7) reading 欄位：請將 original_name 的日文漢字轉換成假名讀音。"
+        "若原文主要使用平假名，則全部輸出平假名（例：天ぷら → てんぷら）；"
+        "若原文主要使用片假名，則全部輸出片假名（例：カツ丼 → カツドン）；"
+        "若原文全是漢字，則輸出平假名。\n"
         "Output: 僅輸出 JSON（不要 markdown，不要多餘文字）。\n"
     )
 
@@ -117,6 +121,10 @@ def _translate_prompt(*, language: str, dish_strings: Sequence[str]) -> str:
         "6) `tags` 最多 3 個，若不確定可為空陣列。\n"
         "7) 若輸入品項數量 >= 3，請在其中挑選最多 3 個最推薦的標記 `is_top3=true`；其餘為 false。\n"
         "8) `image_prompt`、`romanji` 可留空。\n"
+        "9) `reading` 欄位：請將 original_name 的日文漢字轉換成假名讀音。"
+        "若原文主要使用平假名，則全部輸出平假名（例：天ぷら → てんぷら）；"
+        "若原文主要使用片假名，則全部輸出片假名（例：カツ丼 → カツドン）；"
+        "若原文全是漢字，則輸出平假名。\n"
         "Input dish items (JSON lines):\n"
         f"{joined}\n"
         "Output: 僅輸出 JSON（不要 markdown，不要多餘文字）。\n"
@@ -393,6 +401,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
             ).strip()
 
         romanji = (m.romanji or "").strip()
+        reading = (m.reading or "").strip()
 
         if key not in items_by_key:
             items_by_key[key] = MenuItem(
@@ -405,6 +414,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                 image_status="pending" if is_top3 else "none",
                 image_prompt=image_prompt,
                 romanji=romanji,
+                reading=reading,
             )
             item_order.append(key)
             next_item_id += 1
@@ -427,6 +437,9 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
             changed = True
         if romanji and not item.romanji.strip():
             item.romanji = romanji
+            changed = True
+        if reading and not item.reading.strip():
+            item.reading = reading
             changed = True
         if is_top3 and not item.is_top3:
             item.is_top3 = True
@@ -555,6 +568,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                     image_status="none",
                     image_prompt="",
                     romanji="",
+                    reading="",
                 )
                 item_order.append(dish_key)
                 next_item_id += 1
@@ -804,6 +818,9 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                                 changed = True
                             if (m.romanji or "").strip() and not item.romanji.strip():
                                 item.romanji = (m.romanji or "").strip()
+                                changed = True
+                            if (m.reading or "").strip() and not item.reading.strip():
+                                item.reading = (m.reading or "").strip()
                                 changed = True
                             if bool(m.is_top3) and not item.is_top3:
                                 item.is_top3 = True

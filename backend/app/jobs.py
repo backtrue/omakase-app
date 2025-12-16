@@ -77,6 +77,43 @@ def _get_firestore_client() -> firestore.AsyncClient:
     return _firestore_client
 
 
+async def _send_push_notification(
+    push_token: str,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Send push notification via Expo Push API."""
+    import httpx
+    
+    message = {
+        "to": push_token,
+        "sound": "default",
+        "title": title,
+        "body": body,
+    }
+    if data:
+        message["data"] = data
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://exp.host/--/api/v2/push/send",
+                json=message,
+                headers={"Content-Type": "application/json"},
+                timeout=10.0,
+            )
+            if response.status_code == 200:
+                logger.info("Push notification sent to %s", push_token[:20] + "...")
+                return True
+            else:
+                logger.warning("Push notification failed: %s %s", response.status_code, response.text)
+                return False
+    except Exception as e:
+        logger.exception("Failed to send push notification: %s", e)
+        return False
+
+
 # -----------------------------------------------------------------------------
 # Schemas
 # -----------------------------------------------------------------------------
@@ -94,6 +131,7 @@ class SignedUrlResponse(BaseModel):
 class CreateJobRequest(BaseModel):
     gcs_uri: str
     user_preferences: UserPreferences = Field(default_factory=UserPreferences)
+    push_token: Optional[str] = None  # Expo push token for completion notification
 
 
 class CreateJobResponse(BaseModel):
@@ -113,6 +151,7 @@ class RunScanTaskPayload(BaseModel):
     job_id: str
     gcs_uri: str
     language: str = "zh-TW"
+    push_token: Optional[str] = None
 
 
 # -----------------------------------------------------------------------------
@@ -218,6 +257,7 @@ async def create_scan_job(req: CreateJobRequest) -> CreateJobResponse:
         job_id=job_id,
         gcs_uri=req.gcs_uri,
         language=req.user_preferences.language,
+        push_token=req.push_token,
     )
 
     task = tasks_v2.Task(
@@ -296,13 +336,17 @@ async def stream_job_events(
         raise HTTPException(status_code=404, detail="Job not found")
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        events_ref = db.collection("scan_events").where("job_id", "==", job_id)
+        from google.cloud.firestore_v1.base_query import FieldFilter
+        
+        events_ref = db.collection("scan_events").where(filter=FieldFilter("job_id", "==", job_id))
 
         # If reconnecting, only get events after last_event_id
+        start_seq = 0
         if last_event_id:
             try:
-                last_seq = int(last_event_id)
-                events_ref = events_ref.where("seq", ">", last_seq)
+                start_seq = int(last_event_id)
+                events_ref = events_ref.where(filter=FieldFilter("seq", ">", start_seq))
+                logger.info("Reconnecting job_id=%s from seq > %d", job_id, start_seq)
             except ValueError:
                 pass
 
@@ -344,8 +388,8 @@ async def stream_job_events(
             # Check for new events
             new_events_ref = (
                 db.collection("scan_events")
-                .where("job_id", "==", job_id)
-                .where("seq", ">", last_seq)
+                .where(filter=FieldFilter("job_id", "==", job_id))
+                .where(filter=FieldFilter("seq", ">", last_seq))
                 .order_by("seq")
             )
 
@@ -508,6 +552,16 @@ async def run_scan_task(
         # Final snapshot update
         await update_snapshot(final_status, items)
         await job_ref.update({"status": final_status, "updated_at": datetime.datetime.utcnow()})
+
+        # Send push notification if token provided
+        push_token = payload.push_token
+        if push_token and final_status in ("completed", "partial"):
+            await _send_push_notification(
+                push_token,
+                title="菜單翻譯完成！",
+                body=f"已翻譯 {len(items)} 道菜品",
+                data={"job_id": job_id, "status": final_status},
+            )
 
         logger.info("Scan task completed for job_id=%s, status=%s", job_id, final_status)
         return {"status": "ok", "job_id": job_id}
