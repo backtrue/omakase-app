@@ -917,7 +917,10 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                 final_status = "failed"
 
             top3: List[MenuItem] = []
-            if items_by_key and loop.time() < ux_deadline:
+            remaining_for_images = ux_deadline - loop.time()
+            logger.info("Top3 image generation: items=%d, remaining_time=%.1fs", len(items_by_key), remaining_for_images)
+            
+            if items_by_key and remaining_for_images > 10:  # Need at least 10s for image gen
                 snapshot = _snapshot_items()
                 top3_candidates = [i for i in snapshot if i.is_top3]
                 changed_top3 = False
@@ -963,6 +966,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                         last_menu_data_ts = now
 
             if top3 and client is not None and loop.time() < ux_deadline:
+                logger.info("Starting image generation for %d top3 items", len(top3))
                 yield sse_event("status", _status_payload("generating_images", "主廚正在繪製招牌菜插畫..."))
 
                 try:
@@ -1005,6 +1009,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                             continue
 
                         if isinstance(err, asyncio.TimeoutError):
+                            logger.warning("Image generation timeout for item %s", item_id)
                             yield sse_event(
                                 "image_update",
                                 {
@@ -1016,6 +1021,9 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                             )
                             continue
 
+                        if err is not None:
+                            logger.warning("Image generation error for item %s: %s", item_id, err)
+                        
                         if err is not None and _looks_like_model_access_error(err) and image_model == _PRIMARY_IMAGE_MODEL:
                             if not image_fallback_announced:
                                 yield sse_event(

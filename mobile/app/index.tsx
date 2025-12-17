@@ -1,8 +1,9 @@
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, TouchableOpacity, Alert, StyleSheet, LayoutChangeEvent } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAppStore } from "@/lib/store";
 import {
@@ -13,7 +14,22 @@ import {
   JobEventCallbacks,
 } from "@/lib/api";
 import { registerForPushNotifications } from "@/lib/notifications";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+
+// Crop region type for image manipulation
+interface CropRegion {
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
+}
+
+// Scan frame dimensions (must match styles.scanFrame)
+const SCAN_FRAME_WIDTH = 280;
+const SCAN_FRAME_HEIGHT = 380;
+
+// Hidden feature flag for full menu mode (future premium feature)
+const ENABLE_FULL_MENU_MODE = false;
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -35,6 +51,16 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const abortRef = useRef<{ abort: () => void } | null>(null);
+  const frameRef = useRef<View>(null);
+  const insets = useSafeAreaInsets();
+  
+  // Hidden state for full menu mode (future premium feature)
+  const [fullMenuMode, setFullMenuMode] = useState(false);
+  
+  // Layout measurements for crop calculation
+  const [cameraLayout, setCameraLayout] = useState<{ width: number; height: number } | null>(null);
+  // frameAbsoluteY stores the Y position relative to screen (measured via measureInWindow)
+  const [frameAbsoluteY, setFrameAbsoluteY] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -103,15 +129,63 @@ export default function ScanScreen() {
     onHeartbeat: () => {},
   });
 
-  const handleImageSelected = async (uri: string) => {
+  // Calculate crop region based on frame position relative to camera preview
+  const calculateCropRegion = useCallback(async (photoWidth: number, photoHeight: number) => {
+    if (!cameraLayout || fullMenuMode) {
+      return null; // No crop in full menu mode or if layout not measured
+    }
+    
+    const screenWidth = cameraLayout.width;
+    const screenHeight = cameraLayout.height;
+    
+    // Frame is centered horizontally
+    const frameX = (screenWidth - SCAN_FRAME_WIDTH) / 2;
+    
+    // Use measured absolute Y position, or estimate if not available
+    let frameY: number;
+    if (frameAbsoluteY !== null) {
+      frameY = frameAbsoluteY;
+    } else {
+      // Estimate: topOverlay takes roughly 20-25% of available space
+      const hintHeight = 50;
+      const controlsHeight = screenHeight * 0.25;
+      const topOverlayHeight = (screenHeight - SCAN_FRAME_HEIGHT - hintHeight - controlsHeight);
+      frameY = Math.max(0, topOverlayHeight * 0.5);
+    }
+    
+    // Convert screen coordinates to photo coordinates
+    const scaleX = photoWidth / screenWidth;
+    const scaleY = photoHeight / screenHeight;
+    
+    const cropX = Math.max(0, Math.round(frameX * scaleX));
+    const cropY = Math.max(0, Math.round(frameY * scaleY));
+    const cropWidth = Math.min(photoWidth - cropX, Math.round(SCAN_FRAME_WIDTH * scaleX));
+    const cropHeight = Math.min(photoHeight - cropY, Math.round(SCAN_FRAME_HEIGHT * scaleY));
+    
+    if (__DEV__) {
+      console.log('[Crop] Screen:', screenWidth, 'x', screenHeight);
+      console.log('[Crop] Photo:', photoWidth, 'x', photoHeight);
+      console.log('[Crop] Frame screen pos:', frameX, frameY);
+      console.log('[Crop] Crop region:', cropX, cropY, cropWidth, cropHeight);
+    }
+    
+    return {
+      originX: cropX,
+      originY: cropY,
+      width: cropWidth,
+      height: cropHeight,
+    };
+  }, [cameraLayout, frameAbsoluteY, fullMenuMode]);
+
+  const handleImageSelected = async (uri: string, cropRegion?: CropRegion | null) => {
     try {
       resetSession();
       setOriginalImage(uri);
       setStatus("scanning", "正在處理圖片...", 0);
       router.push("/analysis");
 
-      // Step 1: Preprocess image and get the processed file URI
-      const { base64, uri: processedUri } = await preprocessImageWithUri(uri);
+      // Step 1: Preprocess image (crop if region provided, then resize)
+      const { base64, uri: processedUri } = await preprocessImageWithUri(uri, cropRegion);
 
       // Step 2: Get signed URL for upload
       setStatus("scanning", "正在準備上傳...", 10);
@@ -153,8 +227,13 @@ export default function ScanScreen() {
         skipProcessing: false,
       });
 
-      if (photo?.uri) {
-        handleImageSelected(photo.uri);
+      if (photo?.uri && photo.width && photo.height) {
+        // Calculate crop region based on scan frame position
+        const cropRegion = await calculateCropRegion(photo.width, photo.height);
+        handleImageSelected(photo.uri, cropRegion);
+      } else if (photo?.uri) {
+        // Fallback: no dimensions available, skip crop
+        handleImageSelected(photo.uri, null);
       }
     } catch (error) {
       console.error("Failed to take photo:", error);
@@ -176,9 +255,33 @@ export default function ScanScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      handleImageSelected(result.assets[0].uri);
+      // Library images are not cropped (no frame alignment)
+      // In future premium mode, this could use full menu processing
+      handleImageSelected(result.assets[0].uri, null);
     }
   };
+
+  // Layout event handlers for accurate crop calculation
+  // Must be defined before any conditional returns to maintain hooks order
+  const onCameraLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setCameraLayout({ width, height });
+    if (__DEV__) {
+      console.log('[Layout] Camera:', width, 'x', height);
+    }
+  }, []);
+
+  const onFrameLayout = useCallback(() => {
+    // Use measureInWindow to get absolute screen position
+    if (frameRef.current) {
+      frameRef.current.measureInWindow((x, y, width, height) => {
+        setFrameAbsoluteY(y);
+        if (__DEV__) {
+          console.log('[Layout] Frame absolute:', x, y, width, height);
+        }
+      });
+    }
+  }, []);
 
   // Show permission request screen if not granted
   if (!permission?.granted) {
@@ -199,7 +302,7 @@ export default function ScanScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onCameraLayout}>
       {/* Live Camera Preview */}
       <CameraView
         ref={cameraRef}
@@ -215,7 +318,7 @@ export default function ScanScreen() {
         {/* Middle area with scan frame */}
         <View style={styles.middleRow}>
           <View style={styles.sideOverlay} />
-          <View style={styles.scanFrame}>
+          <View ref={frameRef} style={styles.scanFrame} onLayout={onFrameLayout}>
             <View style={styles.cornerTL} />
             <View style={styles.cornerTR} />
             <View style={styles.cornerBL} />
@@ -375,12 +478,24 @@ const styles = StyleSheet.create({
 });
 
 // Helper function that returns both base64 and the processed file URI
-async function preprocessImageWithUri(uri: string): Promise<{ base64: string; uri: string }> {
-  const ImageManipulator = await import("expo-image-manipulator");
+// Optionally crops to the specified region before resizing
+async function preprocessImageWithUri(
+  uri: string,
+  cropRegion?: CropRegion | null
+): Promise<{ base64: string; uri: string }> {
+  // Build actions array: crop first (if provided), then resize
+  const actions: ImageManipulator.Action[] = [];
+  
+  if (cropRegion && cropRegion.width > 0 && cropRegion.height > 0) {
+    actions.push({ crop: cropRegion });
+  }
+  
+  // Always resize to max 2048 width for consistent processing
+  actions.push({ resize: { width: 2048 } });
 
   const manipulated = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 2048 } }],
+    actions,
     {
       compress: 0.85,
       format: ImageManipulator.SaveFormat.JPEG,

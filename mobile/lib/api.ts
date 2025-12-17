@@ -114,6 +114,95 @@ export interface JobEventCallbacks {
   onEventId?: (eventId: string) => void;
 }
 
+// Fix UTF-8 encoding issues in React Native XMLHttpRequest
+// responseText may incorrectly interpret UTF-8 bytes as Latin-1
+function fixUtf8Encoding(str: string): string {
+  try {
+    // Check if string looks like it needs fixing (has high bytes interpreted as Latin-1)
+    // UTF-8 multi-byte sequences start with bytes >= 0x80
+    let needsFix = false;
+    for (let i = 0; i < str.length && i < 100; i++) {
+      const code = str.charCodeAt(i);
+      // Latin-1 chars 0x80-0xFF that are actually UTF-8 lead bytes
+      if (code >= 0xC0 && code <= 0xFF) {
+        needsFix = true;
+        break;
+      }
+    }
+    
+    if (!needsFix) {
+      return str;
+    }
+    
+    // Convert Latin-1 interpreted string back to UTF-8
+    // Using manual UTF-8 decoding for React Native compatibility
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      bytes.push(str.charCodeAt(i) & 0xFF);
+    }
+    
+    // Decode UTF-8 bytes to string
+    let result = '';
+    let i = 0;
+    while (i < bytes.length) {
+      const byte1 = bytes[i];
+      if (byte1 < 0x80) {
+        // Single byte (ASCII)
+        result += String.fromCharCode(byte1);
+        i++;
+      } else if ((byte1 & 0xE0) === 0xC0 && i + 1 < bytes.length) {
+        // Two bytes
+        const byte2 = bytes[i + 1];
+        if ((byte2 & 0xC0) === 0x80) {
+          result += String.fromCharCode(((byte1 & 0x1F) << 6) | (byte2 & 0x3F));
+          i += 2;
+        } else {
+          result += String.fromCharCode(byte1);
+          i++;
+        }
+      } else if ((byte1 & 0xF0) === 0xE0 && i + 2 < bytes.length) {
+        // Three bytes (most CJK characters)
+        const byte2 = bytes[i + 1];
+        const byte3 = bytes[i + 2];
+        if ((byte2 & 0xC0) === 0x80 && (byte3 & 0xC0) === 0x80) {
+          result += String.fromCharCode(((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F));
+          i += 3;
+        } else {
+          result += String.fromCharCode(byte1);
+          i++;
+        }
+      } else if ((byte1 & 0xF8) === 0xF0 && i + 3 < bytes.length) {
+        // Four bytes (emoji, rare CJK)
+        const byte2 = bytes[i + 1];
+        const byte3 = bytes[i + 2];
+        const byte4 = bytes[i + 3];
+        if ((byte2 & 0xC0) === 0x80 && (byte3 & 0xC0) === 0x80 && (byte4 & 0xC0) === 0x80) {
+          const codePoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
+          // Convert to surrogate pair for JS string
+          if (codePoint > 0xFFFF) {
+            const adjusted = codePoint - 0x10000;
+            result += String.fromCharCode(0xD800 + (adjusted >> 10), 0xDC00 + (adjusted & 0x3FF));
+          } else {
+            result += String.fromCharCode(codePoint);
+          }
+          i += 4;
+        } else {
+          result += String.fromCharCode(byte1);
+          i++;
+        }
+      } else {
+        // Invalid or incomplete sequence, keep original
+        result += String.fromCharCode(byte1);
+        i++;
+      }
+    }
+    
+    return result;
+  } catch {
+    return str;
+  }
+}
+
 export function streamJobEvents(
   jobId: string,
   callbacks: JobEventCallbacks,
@@ -127,6 +216,7 @@ export function streamJobEvents(
 
   xhr.open("GET", url, true);
   xhr.setRequestHeader("Accept", "text/event-stream");
+  xhr.setRequestHeader("Accept-Charset", "utf-8");
 
   let processedLength = 0;
   let settled = false;
@@ -169,7 +259,9 @@ export function streamJobEvents(
       if (!currentEvent || !currentData) continue;
 
       try {
-        const parsed = JSON.parse(currentData);
+        // Fix UTF-8 encoding before parsing JSON
+        const fixedData = fixUtf8Encoding(currentData);
+        const parsed = JSON.parse(fixedData);
 
         if (currentEventId) {
           callbacks.onEventId?.(currentEventId);
