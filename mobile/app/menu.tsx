@@ -1,11 +1,26 @@
-import { View, Text, ScrollView, TouchableOpacity, Image, FlatList } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Image, Alert, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAppStore } from "@/lib/store";
 import { MenuItem } from "@/types";
 
+const AI_IMAGE_BADGE_TEXT = "AI示意";
+const AI_IMAGE_DISCLAIMER_TITLE = "AI 圖片提醒";
+const AI_IMAGE_DISCLAIMER_MESSAGE =
+  "此圖片由 AI 生成，僅供示意參考，可能與實際上菜內容、擺盤或配料不同；請以店家實際提供為準。";
+
+ function isAiGeneratedImageUrl(url: string | undefined | null): boolean {
+   if (!url) return false;
+   return url.includes("/assets/gen/");
+ }
+
+ function showAiImageDisclaimer() {
+   Alert.alert(AI_IMAGE_DISCLAIMER_TITLE, AI_IMAGE_DISCLAIMER_MESSAGE, [{ text: "了解" }]);
+ }
+
 function MenuItemCard({ item, onPress }: { item: MenuItem; onPress: () => void }) {
+  const showBadge = isAiGeneratedImageUrl(item.image_url);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -14,7 +29,28 @@ function MenuItemCard({ item, onPress }: { item: MenuItem; onPress: () => void }
       {/* Image */}
       <View className="w-20 h-20 rounded-xl bg-neutral-100 overflow-hidden mr-4">
         {item.image_url ? (
-          <Image source={{ uri: item.image_url }} className="w-full h-full" resizeMode="cover" />
+          <View className="w-full h-full">
+            <Image source={{ uri: item.image_url }} className="w-full h-full" resizeMode="cover" />
+            {showBadge && (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  showAiImageDisclaimer();
+                }}
+                style={{
+                  position: "absolute",
+                  right: 6,
+                  bottom: 6,
+                  backgroundColor: "rgba(0,0,0,0.65)",
+                  paddingHorizontal: 6,
+                  paddingVertical: 3,
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ color: "white", fontSize: 10, fontWeight: "600" }}>{AI_IMAGE_BADGE_TEXT}</Text>
+              </Pressable>
+            )}
+          </View>
         ) : (
           <View className="w-full h-full items-center justify-center">
             {item.image_status === "generating" ? (
@@ -54,6 +90,7 @@ function MenuItemCard({ item, onPress }: { item: MenuItem; onPress: () => void }
 }
 
 function Top3Card({ item, onPress }: { item: MenuItem; onPress: () => void }) {
+  const showBadge = isAiGeneratedImageUrl(item.image_url);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -61,7 +98,28 @@ function Top3Card({ item, onPress }: { item: MenuItem; onPress: () => void }) {
     >
       <View className="w-full h-28 bg-neutral-100">
         {item.image_url ? (
-          <Image source={{ uri: item.image_url }} className="w-full h-full" resizeMode="cover" />
+          <View className="w-full h-full">
+            <Image source={{ uri: item.image_url }} className="w-full h-full" resizeMode="cover" />
+            {showBadge && (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  showAiImageDisclaimer();
+                }}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  bottom: 8,
+                  backgroundColor: "rgba(0,0,0,0.65)",
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 10,
+                }}
+              >
+                <Text style={{ color: "white", fontSize: 11, fontWeight: "600" }}>{AI_IMAGE_BADGE_TEXT}</Text>
+              </Pressable>
+            )}
+          </View>
         ) : (
           <View className="w-full h-full items-center justify-center">
             <MaterialIcons name="restaurant" size={32} color="#ccc" />

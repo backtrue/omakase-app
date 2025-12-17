@@ -1,10 +1,24 @@
-import { View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Image, Alert, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAppStore } from "@/lib/store";
 import * as Speech from "expo-speech";
 import { useEffect, useState } from "react";
+
+const AI_IMAGE_BADGE_TEXT = "AI示意";
+const AI_IMAGE_DISCLAIMER_TITLE = "AI 圖片提醒";
+const AI_IMAGE_DISCLAIMER_MESSAGE =
+  "此圖片由 AI 生成，僅供示意參考，可能與實際上菜內容、擺盤或配料不同；請以店家實際提供為準。";
+
+function isAiGeneratedImageUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  return url.includes("/assets/gen/");
+}
+
+function showAiImageDisclaimer() {
+  Alert.alert(AI_IMAGE_DISCLAIMER_TITLE, AI_IMAGE_DISCLAIMER_MESSAGE, [{ text: "了解" }]);
+}
 
 export default function DishScreen() {
   const router = useRouter();
@@ -28,6 +42,8 @@ export default function DishScreen() {
     );
   }
 
+  const showAiBadge = isAiGeneratedImageUrl(selectedDish.image_url);
+
   const handleSpeak = async () => {
     if (isSpeaking) {
       await Speech.stop();
@@ -36,7 +52,7 @@ export default function DishScreen() {
     }
 
     try {
-      const textToSpeak = selectedDish.original_name;
+      const textToSpeak = (selectedDish.reading || "").trim() || selectedDish.original_name;
       if (__DEV__) {
         console.log("[TTS] Speaking:", textToSpeak);
       }
@@ -97,17 +113,45 @@ export default function DishScreen() {
         {/* Hero Image */}
         <View className="w-full aspect-square bg-neutral-100">
           {selectedDish.image_url ? (
-            <Image
-              source={{ uri: selectedDish.image_url }}
-              className="w-full h-full"
-              resizeMode="cover"
-            />
+            <View className="w-full h-full">
+              <Image
+                source={{ uri: selectedDish.image_url }}
+                className="w-full h-full"
+                resizeMode="cover"
+              />
+              {showAiBadge && (
+                <Pressable
+                  onPress={() => {
+                    showAiImageDisclaimer();
+                  }}
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    bottom: 12,
+                    backgroundColor: "rgba(0,0,0,0.65)",
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 12,
+                  }}
+                >
+                  <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>{AI_IMAGE_BADGE_TEXT}</Text>
+                </Pressable>
+              )}
+            </View>
           ) : (
             <View className="w-full h-full items-center justify-center">
               <MaterialIcons name="restaurant" size={64} color="#ccc" />
             </View>
           )}
         </View>
+
+        {showAiBadge && (
+          <View className="px-6 pt-3">
+            <Text className="text-xs text-neutral-500">
+              圖片由 AI 生成，僅為示意使用，可能會與實際上菜內容有差。
+            </Text>
+          </View>
+        )}
 
         {/* Content */}
         <View className="p-6">
