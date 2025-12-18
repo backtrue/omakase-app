@@ -15,10 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.omakase.app",
+      "bundleIdentifier": "toldyou.Omakase",
       "infoPlist": {
         "NSCameraUsageDescription": "需要相機權限來拍攝菜單照片",
-        "NSPhotoLibraryUsageDescription": "需要相簿權限來選取菜單照片"
+        "NSPhotoLibraryUsageDescription": "需要相簿權限來選取菜單照片",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
