@@ -75,5 +75,5 @@
 
 ## 待填（之後 App Store Connect 會需要）
 
-- **Privacy Policy URL**：待你把 GitHub Pages 開好後填入
+- **Privacy Policy URL**：https://backtrue.github.io/omakase-app/privacy-policy/
 - **版本與更新說明**：1.0.0（可填簡短版本亮點）
