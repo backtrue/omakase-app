@@ -87,11 +87,16 @@ export const useAppStore = create<AppState>((set) => ({
           existingMap.set(item.id, item);
         }
       }
+      const mergedItems = Array.from(existingMap.values());
+
+      const selectedDishId = state.selectedDish?.id;
+      const nextSelectedDish = selectedDishId ? existingMap.get(selectedDishId) ?? null : null;
       return {
         session: {
           ...state.session,
-          menuItems: Array.from(existingMap.values()),
+          menuItems: mergedItems,
         },
+        ...(state.selectedDish ? { selectedDish: nextSelectedDish } : {}),
       };
     }),
 
