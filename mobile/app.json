@@ -14,7 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "toldyou.Omakase",
       "infoPlist": {
         "NSCameraUsageDescription": "需要相機權限來拍攝菜單照片",
