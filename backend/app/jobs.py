@@ -25,6 +25,7 @@ from google.cloud import firestore, storage, tasks_v2
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
 
+from .observability import ErrorCode, ScanContext, log_scan_done, log_scan_error, log_scan_start
 from .schemas import MenuItem, UserPreferences
 from .sse import sse_event
 
@@ -366,7 +367,7 @@ async def stream_job_events(
 
             yield sse_event(event_type, payload, event_id=str(seq))
 
-            if event_type in ("done", "error"):
+            if event_type == "done":
                 job_done = True
 
         if job_done:
@@ -403,7 +404,7 @@ async def stream_job_events(
 
                 yield sse_event(event_type, payload, event_id=str(seq))
 
-                if event_type in ("done", "error"):
+                if event_type == "done":
                     return
 
             # Send heartbeat to keep connection alive
@@ -437,6 +438,10 @@ async def run_scan_task(
     job_id = payload.job_id
     gcs_uri = payload.gcs_uri
     language = payload.language
+
+    # Create observability context for this job
+    ctx = ScanContext(session_id=job_id, job_id=job_id)
+    log_scan_start(ctx, extra={"gcs_uri": gcs_uri, "language": language})
 
     logger.info("Running scan task for job_id=%s, gcs_uri=%s", job_id, gcs_uri)
 
@@ -563,17 +568,37 @@ async def run_scan_task(
                 data={"job_id": job_id, "status": final_status},
             )
 
+        # Log completion with observability
+        ctx.mark_done(final_status)
+        ctx.items_count = len(items)
+        log_scan_done(ctx)
+
         logger.info("Scan task completed for job_id=%s, status=%s", job_id, final_status)
         return {"status": "ok", "job_id": job_id}
 
     except Exception as e:
-        logger.exception("Scan task failed for job_id=%s", job_id)
+        log_scan_error(ctx, ErrorCode.SCAN_FAILED, str(e), exc=e)
 
         # Emit error event
         await emit_event("error", {
-            "code": "SCAN_FAILED",
+            "code": ErrorCode.SCAN_FAILED.value,
             "message": str(e),
             "recoverable": False,
+        })
+
+        # Always emit done event after error to signal stream end
+        ctx.mark_done("failed")
+        log_scan_done(ctx)
+        await emit_event("done", {
+            "status": "failed",
+            "session_id": job_id,
+            "summary": {
+                "elapsed_ms": ctx.elapsed_ms(),
+                "items_count": 0,
+                "used_cache": False,
+                "used_fallback": False,
+                "unknown_items_count": 0,
+            },
         })
 
         # Update status to failed

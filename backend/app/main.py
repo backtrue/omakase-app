@@ -17,6 +17,7 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 from .db import fetch_dish_knowledge, insert_scan_record, open_db, upsert_dish_knowledge_many
 from .gemini_client import GeminiClient
 from .image_store import ImageStore
+from .observability import ErrorCode, ScanContext, log_scan_done, log_scan_error, log_scan_start, log_step_timing
 from .schemas import MenuDataEvent, MenuItem, ScanRequest, VlmMenuItem, VlmMenuResponse
 from .sse import sse_event
 from .jobs import router as jobs_router
@@ -321,8 +322,10 @@ def _mock_menu_items() -> List[MenuItem]:
         ),
     ]
 
-async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
+async def _stream_scan(req: ScanRequest, job_id: str | None = None) -> AsyncGenerator[str, None]:
     session_id = str(uuid.uuid4())
+    ctx = ScanContext(session_id=session_id, job_id=job_id)
+    log_scan_start(ctx)
 
     google_api_key = os.getenv("GOOGLE_API_KEY")
     public_base_url = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8080")
@@ -348,6 +351,13 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
     used_cache = False
     used_fallback = False
     final_status: str = "failed"
+
+    # Timing markers for observability
+    vlm_start_ts: float | None = None
+    translate_start_ts: float | None = None
+    image_gen_start_ts: float | None = None
+    db_fetch_start_ts: float | None = None
+    db_write_start_ts: float | None = None
 
     emitted_fatal_error = False
 
@@ -468,6 +478,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                 MenuDataEvent(session_id=session_id, items=items).model_dump(),
             )
             menu_data_emitted = True
+            ctx.mark_first_menu_data()
             last_menu_data_ts = loop.time()
 
             top3 = [i for i in items if i.is_top3]
@@ -496,10 +507,11 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
 
             try:
                 image_bytes, mime_type = _decode_base64_image(req.image_base64)
-            except Exception:
+            except Exception as e:
+                log_scan_error(ctx, ErrorCode.INVALID_IMAGE_BASE64, str(e))
                 yield sse_event(
                     "error",
-                    {"code": "INVALID_IMAGE_BASE64", "message": "圖片格式不正確，請重新拍攝/上傳", "recoverable": True},
+                    {"code": ErrorCode.INVALID_IMAGE_BASE64.value, "message": "圖片格式不正確，請重新拍攝/上傳", "recoverable": True},
                 )
                 emitted_fatal_error = True
                 image_bytes = b""
@@ -577,6 +589,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
             if not segments:
                 vlm_exc = RuntimeError("no image bytes")
             else:
+                vlm_start_ts = loop.time()
                 for attempt_idx, (attempt_model, attempt_deadline, is_fallback_attempt) in enumerate(attempts):
                     if loop.time() >= ux_deadline:
                         break
@@ -663,6 +676,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                                         MenuDataEvent(session_id=session_id, items=_snapshot_items()).model_dump(),
                                     )
                                     menu_data_emitted = True
+                                    ctx.mark_first_menu_data()
                                     last_menu_data_ts = now
 
                             if loop.time() >= ux_deadline:
@@ -692,6 +706,11 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                             continue
                         break
 
+                # Log VLM timing
+                if vlm_start_ts is not None:
+                    ctx.vlm_ms = int((loop.time() - vlm_start_ts) * 1000)
+                    log_step_timing(ctx, "vlm_ocr", ctx.vlm_ms, extra={"segments": len(segments), "items_found": len(items_by_key)})
+
             if items_by_key:
                 try:
                     async def _db_fetch_knowledge() -> Dict[str, Dict[str, Any]]:
@@ -707,10 +726,13 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                     remaining_budget = max(0.0, ux_deadline - loop.time())
                     knowledge: Dict[str, Dict[str, Any]] = {}
                     if remaining_budget > 0:
+                        db_fetch_start_ts = loop.time()
                         knowledge = await asyncio.wait_for(
                             _db_fetch_knowledge(),
                             timeout=min(db_timeout_s, remaining_budget),
                         )
+                        ctx.db_fetch_ms = int((loop.time() - db_fetch_start_ts) * 1000)
+                        log_step_timing(ctx, "db_fetch", ctx.db_fetch_ms, extra={"cache_hit": bool(knowledge)})
 
                     if knowledge:
                         changed = False
@@ -747,6 +769,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                                     MenuDataEvent(session_id=session_id, items=_snapshot_items()).model_dump(),
                                 )
                                 menu_data_emitted = True
+                                ctx.mark_first_menu_data()
                                 last_menu_data_ts = now
                 except asyncio.TimeoutError:
                     pass
@@ -755,6 +778,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
 
                 unknown = [k for k in item_order if k in items_by_key and not items_by_key[k].translated_name.strip()]
                 if unknown and client is not None and loop.time() < ux_deadline:
+                    translate_start_ts = loop.time()
                     yield sse_event("status", _status_payload("analyzing", "主廚正在翻譯未知菜色..."))
                     translate_prompt = _translate_prompt(
                         language=req.user_preferences.language,
@@ -843,7 +867,13 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                                     MenuDataEvent(session_id=session_id, items=_snapshot_items()).model_dump(),
                                 )
                                 menu_data_emitted = True
+                                ctx.mark_first_menu_data()
                                 last_menu_data_ts = now
+
+                    # Log translate timing
+                    if translate_start_ts is not None:
+                        ctx.translate_ms = int((loop.time() - translate_start_ts) * 1000)
+                        log_step_timing(ctx, "translate", ctx.translate_ms, extra={"unknown_count": len(unknown)})
 
                 if items_by_key and not menu_data_emitted:
                     yield sse_event(
@@ -851,6 +881,7 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                         MenuDataEvent(session_id=session_id, items=_snapshot_items()).model_dump(),
                     )
                     menu_data_emitted = True
+                    ctx.mark_first_menu_data()
                     last_menu_data_ts = loop.time()
 
                 try:
@@ -888,26 +919,30 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
 
                     remaining_budget = max(0.0, ux_deadline - loop.time())
                     if remaining_budget > 0:
+                        db_write_start_ts = loop.time()
                         await asyncio.wait_for(
                             _db_write_scan_and_knowledge(),
                             timeout=min(db_timeout_s, remaining_budget),
                         )
+                        ctx.db_write_ms = int((loop.time() - db_write_start_ts) * 1000)
+                        log_step_timing(ctx, "db_write", ctx.db_write_ms)
                 except asyncio.TimeoutError:
-                    pass
-                except Exception:
-                    logger.exception("DB write scan and knowledge failed")
+                    log_scan_error(ctx, ErrorCode.DB_TIMEOUT, "DB write timeout")
+                except Exception as e:
+                    log_scan_error(ctx, ErrorCode.DB_FAILED, str(e), exc=e)
 
                 final_status = "completed"
             else:
                 if not emitted_fatal_error:
-                    code = "VLM_TIMEOUT" if isinstance(vlm_exc, asyncio.TimeoutError) else "VLM_FAILED"
+                    error_code = ErrorCode.VLM_TIMEOUT if isinstance(vlm_exc, asyncio.TimeoutError) else ErrorCode.VLM_FAILED
                     detail = str(vlm_exc) if vlm_exc is not None else ""
+                    log_scan_error(ctx, error_code, detail)
                     yield sse_event(
                         "error",
                         {
-                            "code": code,
+                            "code": error_code.value,
                             "message": "解析逾時：請稍後重試或換一張更清晰的照片"
-                            if code == "VLM_TIMEOUT"
+                            if error_code == ErrorCode.VLM_TIMEOUT
                             else "解析失敗：請確認圖片清晰且為菜單",
                             "detail": detail,
                             "recoverable": True,
@@ -963,9 +998,11 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                             MenuDataEvent(session_id=session_id, items=_snapshot_items()).model_dump(),
                         )
                         menu_data_emitted = True
+                        ctx.mark_first_menu_data()
                         last_menu_data_ts = now
 
             if top3 and client is not None and loop.time() < ux_deadline:
+                image_gen_start_ts = loop.time()
                 logger.info("Starting image generation for %d top3 items", len(top3))
                 yield sse_event("status", _status_payload("generating_images", "主廚正在繪製招牌菜插畫..."))
 
@@ -1094,10 +1131,11 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                                 },
                             )
                 except Exception as e:
+                    log_scan_error(ctx, ErrorCode.IMAGE_PIPELINE_FAILED, str(e), exc=e)
                     yield sse_event(
                         "error",
                         {
-                            "code": "IMAGE_PIPELINE_FAILED",
+                            "code": ErrorCode.IMAGE_PIPELINE_FAILED.value,
                             "message": "生圖流程失敗",
                             "detail": str(e),
                             "recoverable": True,
@@ -1108,15 +1146,20 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
                     else:
                         final_status = "completed"
 
+                # Log image generation timing
+                if image_gen_start_ts is not None:
+                    ctx.image_gen_ms = int((loop.time() - image_gen_start_ts) * 1000)
+                    log_step_timing(ctx, "image_gen", ctx.image_gen_ms, extra={"top3_count": len(top3)})
+
     except asyncio.CancelledError:
         raise
     except Exception as e:
-        logger.exception("scan stream failed")
+        log_scan_error(ctx, ErrorCode.INTERNAL_ERROR, str(e), exc=e)
         if not emitted_fatal_error:
             yield sse_event(
                 "error",
                 {
-                    "code": "INTERNAL_ERROR",
+                    "code": ErrorCode.INTERNAL_ERROR.value,
                     "message": "系統忙碌或發生未知錯誤，請稍後重試",
                     "detail": str(e),
                     "recoverable": True,
@@ -1128,6 +1171,15 @@ async def _stream_scan(req: ScanRequest) -> AsyncGenerator[str, None]:
     elapsed_ms = int(max(0.0, (loop.time() - started_at)) * 1000)
     snapshot = _snapshot_items()
     unknown_items_count = len([i for i in snapshot if not (i.translated_name or "").strip()])
+
+    # Update context for final logging
+    ctx.mark_done(final_status)
+    ctx.items_count = len(snapshot)
+    ctx.unknown_items_count = unknown_items_count
+    ctx.used_cache = used_cache
+    ctx.used_fallback = used_fallback
+    log_scan_done(ctx)
+
     yield sse_event(
         "done",
         {
