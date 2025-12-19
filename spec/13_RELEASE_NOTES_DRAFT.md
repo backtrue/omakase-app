@@ -34,6 +34,12 @@ This draft summarizes recent and upcoming P0 changes around scan streaming UX, s
 - Existing stability work includes separate timeout budget considerations and model fallbacks.
 - Environment variables and secrets are defined in `spec/04_SECRETS_ENV.md`.
 
+## Implementation Notes (as of 2025-12)
+- In addition to the direct streaming endpoint, the repo includes a job-based/resumable scan pipeline (`backend/app/jobs.py`) with:
+  - GCS signed uploads
+  - Cloud Tasks orchestration
+  - Firestore-backed event replay via `GET /api/v1/scan/jobs/{job_id}/events`
+
 ## References
 - `spec/01_API_SSE.md`
 - `spec/10_MENU_CACHE_GPS_SIMILARITY.md`

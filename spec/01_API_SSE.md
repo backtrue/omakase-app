@@ -3,6 +3,38 @@
 Base URL (public):
 - `https://omakase.thinkwithblack.com`
 
+## Normative API Decision (v1)
+
+### Normative client integration: resumable job workflow
+
+For v1, the normative client integration is the **resumable job-based workflow**:
+- `POST /api/v1/uploads/signed-url`
+- `POST /api/v1/scan/jobs`
+- `GET /api/v1/scan/jobs/{job_id}/events` (SSE, resumable)
+- `GET /api/v1/scan/jobs/{job_id}` (snapshot polling)
+
+The **normative contract** is the SSE event schema defined in this document.
+
+### Legacy / compatibility endpoint
+
+`POST /api/v1/scan/stream` is treated as a compatibility endpoint:
+- It must emit the same core event types (`status`, `menu_data`, `image_update`, `done`) with the same payload schemas.
+- It is not guaranteed to be resumable.
+
+## Compatibility & Evolution Rules (Normative)
+
+### Backward compatibility (v1)
+- Clients must ignore unknown fields in `data` JSON payloads.
+- Clients must ignore unknown `event` types.
+- Producers may add new fields and new event types in v1 (additive changes only).
+
+### Breaking changes
+- Breaking changes require a new API version (e.g. `/api/v2/...`) and a migration plan.
+
+### Deprecation process
+- Mark endpoints or fields as deprecated in this document with a target removal window.
+- Prefer additive replacement first, then deprecate.
+
 ## Endpoint: Stream Scan
 
 ### `POST /api/v1/scan/stream`
@@ -135,3 +167,28 @@ Payload (extended, optional; backward-compatible):
 - Worker must proxy SSE without buffering.
 - Cloud Run must disable response buffering (default FastAPI streaming generator is OK).
 - iOS should treat the stream as authoritative; UI state should update per event.
+
+## Implemented Alternative: Resumable Job Stream (MVP)
+
+This repo also implements a job-based workflow that reuses the **same event types and payload schemas** defined above, but makes the stream resumable.
+
+### Create + Run a job
+- `POST /api/v1/uploads/signed-url`
+- `POST /api/v1/scan/jobs`
+
+Implementation details:
+- The job creation request supports an optional Expo `push_token` for completion notifications.
+- Jobs are executed by Cloud Tasks via an internal handler: `POST /internal/tasks/run-scan`.
+
+### Consume events (SSE)
+
+#### `GET /api/v1/scan/jobs/{job_id}/events`
+
+Resumable behavior:
+- Each SSE event includes an `id` set to an increasing sequence number.
+- Clients can reconnect using:
+  - `last_event_id` query parameter (integer), and the server will replay only events with `seq > last_event_id`.
+
+Additional events (implementation detail):
+- `heartbeat`: periodic keep-alive emitted by the job stream while polling for new events.
+- `timeout`: emitted when the job stream polling window ends; clients should reconnect.

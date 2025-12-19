@@ -40,3 +40,12 @@ Future:
 ## Security Notes
 - Do not embed secrets in object keys.
 - If switching to private bucket + signed URLs later, keep the `image_url` stable by having Worker generate signed fetch internally.
+
+## Implementation Notes (as of 2025-12)
+
+Cloud Run currently uploads generated images via `backend/app/image_store.py`:
+- Uses `boto3` S3-compatible client pointed at `R2_ENDPOINT`.
+- Writes objects with:
+  - `ContentType: image/jpeg`
+  - `CacheControl: public, max-age=31536000, immutable`
+- Keeps an in-memory copy for local/debug runs and caches `get()` reads in memory.

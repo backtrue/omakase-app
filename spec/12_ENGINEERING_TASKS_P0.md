@@ -19,6 +19,20 @@ Normative references:
 - Worker proxies SSE without buffering.
 - Optional: `done.summary` for lightweight diagnostics.
 
+## Current Implementation Notes (as of 2025-12)
+
+- A resumable **job-based scan pipeline** is implemented in `backend/app/jobs.py`:
+  - `POST /api/v1/uploads/signed-url`
+  - `POST /api/v1/scan/jobs`
+  - `GET /api/v1/scan/jobs/{job_id}`
+  - `GET /api/v1/scan/jobs/{job_id}/events` (SSE replay via `last_event_id`)
+- The job stream reuses the same event types as `spec/01_API_SSE.md` and may additionally emit `heartbeat`/`timeout`.
+- The Worker implements internal persistence endpoints backed by D1 in `worker/src/index.ts`:
+  - `POST /internal/dish_knowledge/fetch`
+  - `POST /internal/dish_knowledge/upsert_many`
+  - `POST /internal/scan_records/insert`
+  Cloud Run can call these as a DB fallback via `backend/app/db.py`.
+
 ## Backend (Cloud Run / FastAPI)
 ### P0-Backend-1: Progressive `menu_data` snapshots
 - Implement ability to emit `menu_data` multiple times per scan.

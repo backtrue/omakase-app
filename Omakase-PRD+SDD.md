@@ -52,6 +52,13 @@ user story
 * **Architecture**: MVVM \+ Thin Client (邏輯盡量後移)。  
 * **Key Libs**: AVFoundation (相機/TTS), Kingfisher (圖片緩存)。
 
+**Current Implementation (as of 2025-12)**
+
+* Client 已以 **Expo / React Native** 落地（本 repo 的 `mobile/`）。
+* 影像上傳與掃描流程採用 **job-based**：
+  * 先用 signed URL 上傳圖片到 GCS
+  * 再建立 scan job，並以 resumable SSE 訂閱事件（詳見下方介面章節與 `spec/01_API_SSE.md`）
+
 ### **3.2 Backend (Serverless / Container)**
 
 * **API**: Python (FastAPI/Litestar) on Cloud Run or AWS Lambda.  
@@ -127,12 +134,25 @@ Output Format (JSON):
   * **Vector Store**: Supabase (pgvector) \- 用於嚴格圖像比對。  
   * **App DB**: PostgreSQL \- 儲存菜單結構與 Log。
 
+**Current Implementation (as of 2025-12)**
+
+* Backend 仍為 **FastAPI (Cloud Run)**，但掃描工作另有 **Cloud Tasks + Firestore** 作為 job orchestration 與事件儲存（`backend/app/jobs.py`）。
+* Database 層除 PostgreSQL 外，亦支援透過 **Cloudflare Worker + D1** 提供 dish knowledge / scan records 的 fallback internal API（`worker/src/index.ts` + `backend/app/db.py`）。
+
 ## **2\. 介面規格 (Interface Specifications)**
 
 ### **2.1 核心串流 API (Core Streaming Endpoint)**
 
 * **URL**: POST /api/v1/scan/stream  
 * **Header**: Accept: text/event-stream
+
+**Current Implementation (as of 2025-12)**
+
+除上述 direct streaming endpoint 外，另已落地一套可恢復的 job-based API（推薦 client 使用）：
+
+* `POST /api/v1/uploads/signed-url`
+* `POST /api/v1/scan/jobs`
+* `GET /api/v1/scan/jobs/{job_id}/events` (SSE; 支援 `last_event_id` 續接/重播)
 
 **Request Body**:  
 JSON  

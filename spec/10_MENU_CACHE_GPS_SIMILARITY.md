@@ -140,6 +140,11 @@ Default v1 recommendation:
   - derived text tokens
   - coarse location index (geohash/s2)
 
+Implementation note (as of 2025-12):
+- The current job-based pipeline uploads the original image to **GCS** via a signed URL (`POST /api/v1/uploads/signed-url`) and processes it from `gcs_uri`.
+- This is intended as a **temporary processing artifact** (for resumable jobs / retries), not a long-term dataset.
+- Recommendation: enforce retention via bucket lifecycle rules (e.g., delete `uploads/` objects after a short TTL).
+
 Retention:
 - MVP default: no TTL for ScanRecords.
 - DishKnowledge can be retained longer since it is de-identified.

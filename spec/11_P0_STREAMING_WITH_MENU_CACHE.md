@@ -39,6 +39,12 @@ The scan pipeline is always:
 ## API / SSE Contract
 This spec assumes the existing SSE endpoint and event types in `spec/01_API_SSE.md`.
 
+Current implementation note:
+- This contract applies both to:
+  - `POST /api/v1/scan/stream` (direct streaming)
+  - `GET /api/v1/scan/jobs/{job_id}/events` (resumable job stream; see `spec/01_API_SSE.md`)
+- The resumable job stream may also emit `heartbeat` and `timeout` events as implementation details.
+
 ### Required behavior
 - Emit `status` events regularly during processing.
 - Emit **at least one** `menu_data` if any items are extracted.
