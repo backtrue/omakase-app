@@ -38,10 +38,10 @@ export async function uploadToGCSFromUri(
 ): Promise<void> {
   // Read file as base64 and upload using fetch with XMLHttpRequest
   const { File } = await import("expo-file-system/next");
-  
+
   const file = new File(fileUri);
   const base64Data = await file.base64();
-  
+
   // Convert base64 to Uint8Array for upload
   const binaryString = atob(base64Data);
   const bytes = new Uint8Array(binaryString.length);
@@ -129,18 +129,18 @@ function fixUtf8Encoding(str: string): string {
         break;
       }
     }
-    
+
     if (!needsFix) {
       return str;
     }
-    
+
     // Convert Latin-1 interpreted string back to UTF-8
     // Using manual UTF-8 decoding for React Native compatibility
     const bytes: number[] = [];
     for (let i = 0; i < str.length; i++) {
       bytes.push(str.charCodeAt(i) & 0xFF);
     }
-    
+
     // Decode UTF-8 bytes to string
     let result = '';
     let i = 0;
@@ -196,7 +196,7 @@ function fixUtf8Encoding(str: string): string {
         i++;
       }
     }
-    
+
     return result;
   } catch {
     return str;
@@ -220,15 +220,61 @@ export function streamJobEvents(
 
   let processedLength = 0;
   let settled = false;
+  let receivedDone = false;
+  let lastEventTime = Date.now();
+
+  // Safety net: periodic snapshot polling to detect job completion
+  // This handles cases where SSE stream ends without proper done event (iPad issue)
+  const pollInterval = setInterval(async () => {
+    if (settled || receivedDone) {
+      clearInterval(pollInterval);
+      return;
+    }
+
+    // If we haven't received any events in 15 seconds, check job status
+    const timeSinceLastEvent = Date.now() - lastEventTime;
+    if (timeSinceLastEvent > 15000) {
+      if (__DEV__) {
+        console.log("[SSE] No events for 15s, checking job snapshot...");
+      }
+      try {
+        const snapshot = await getJobSnapshot(jobId);
+        if (snapshot.status === "completed" || snapshot.status === "failed") {
+          if (__DEV__) {
+            console.log("[SSE] Job completed via snapshot polling:", snapshot.status);
+          }
+          settled = true;
+          clearInterval(pollInterval);
+          xhr.abort();
+
+          if (snapshot.status === "completed" && snapshot.items.length > 0) {
+            callbacks.onMenuData?.({ session_id: snapshot.job_id, items: snapshot.items, is_partial: false });
+            callbacks.onDone?.({
+              status: "completed",
+              session_id: snapshot.job_id,
+              summary: { elapsed_ms: 0, used_cache: false, items_count: snapshot.items.length, used_fallback: false, unknown_items_count: 0 }
+            });
+          } else {
+            callbacks.onError?.({ code: "JOB_FAILED", message: "掃描任務失敗", recoverable: false });
+          }
+        }
+      } catch (e) {
+        if (__DEV__) {
+          console.warn("[SSE] Snapshot poll failed:", e);
+        }
+      }
+    }
+  }, 10000); // Check every 10 seconds
 
   xhr.onprogress = () => {
+    lastEventTime = Date.now();
     const fullText = xhr.responseText;
     const newData = fullText.substring(processedLength);
-    
+
     // Find complete events (ending with double newline)
     const lastDoubleNewline = newData.lastIndexOf("\n\n");
     if (lastDoubleNewline === -1) return; // No complete events yet
-    
+
     const completeData = newData.substring(0, lastDoubleNewline + 2);
     processedLength += completeData.length;
 
@@ -285,10 +331,13 @@ export function streamJobEvents(
           case "error":
             callbacks.onError?.(parsed as SSEErrorEvent);
             settled = true;
+            clearInterval(pollInterval);
             break;
           case "done":
+            receivedDone = true;
             callbacks.onDone?.(parsed as SSEDoneEvent);
             settled = true;
+            clearInterval(pollInterval);
             break;
           case "heartbeat":
             callbacks.onHeartbeat?.(parsed as SSEHeartbeatEvent);
@@ -305,25 +354,64 @@ export function streamJobEvents(
     }
   };
 
+  // Handle normal stream completion (iPad fix)
+  xhr.onload = async () => {
+    clearInterval(pollInterval);
+
+    if (settled || receivedDone) {
+      return; // Already handled via events
+    }
+
+    if (__DEV__) {
+      console.log("[SSE] Stream ended normally without done event, checking snapshot...");
+    }
+
+    // Stream ended without done event - fall back to snapshot polling
+    try {
+      const snapshot = await getJobSnapshot(jobId);
+      if (snapshot.status === "completed" && snapshot.items.length > 0) {
+        callbacks.onMenuData?.({ session_id: snapshot.job_id, items: snapshot.items, is_partial: false });
+        callbacks.onDone?.({
+          status: "completed",
+          session_id: snapshot.job_id,
+          summary: { elapsed_ms: 0, used_cache: false, items_count: snapshot.items.length, used_fallback: false, unknown_items_count: 0 }
+        });
+      } else if (snapshot.status === "failed") {
+        callbacks.onError?.({ code: "JOB_FAILED", message: "掃描任務失敗", recoverable: false });
+      } else if (snapshot.status === "pending" || snapshot.status === "running") {
+        // Job still running, emit recoverable error to trigger reconnect
+        callbacks.onError?.({ code: "STREAM_ENDED", message: "串流意外結束，正在重連...", recoverable: true });
+      }
+    } catch (e) {
+      if (__DEV__) {
+        console.error("[SSE] Failed to get snapshot after stream end:", e);
+      }
+      callbacks.onError?.({ code: "NETWORK_ERROR", message: "網路連線失敗", recoverable: true });
+    }
+  };
+
   xhr.onerror = () => {
+    clearInterval(pollInterval);
     if (!settled) {
       callbacks.onError?.({ code: "NETWORK_ERROR", message: "Network error", recoverable: true });
     }
   };
 
   xhr.ontimeout = () => {
+    clearInterval(pollInterval);
     if (!settled) {
       callbacks.onError?.({ code: "TIMEOUT", message: "Request timeout", recoverable: true });
     }
   };
 
-  xhr.timeout = 330000; // 5.5 minutes (slightly longer than server's 5 min poll)
+  xhr.timeout = 180000; // 3 minutes (matches spec hard cap)
 
   xhr.send();
 
   return {
     abort: () => {
       settled = true;
+      clearInterval(pollInterval);
       xhr.abort();
     },
   };
