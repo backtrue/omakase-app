@@ -12,6 +12,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-navigation/native": "^7.1.8",
     "expo": "~54.0.29",
+    "expo-audio": "~1.1.1",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.12",
     "expo-device": "^8.0.10",

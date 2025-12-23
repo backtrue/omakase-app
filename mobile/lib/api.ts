@@ -336,8 +336,12 @@ export function streamJobEvents(
           case "done":
             receivedDone = true;
             callbacks.onDone?.(parsed as SSEDoneEvent);
-            settled = true;
-            clearInterval(pollInterval);
+            // Continue polling for a few more seconds to catch any image_update events
+            // that may still be coming after done
+            setTimeout(() => {
+              settled = true;
+              clearInterval(pollInterval);
+            }, 3000);
             break;
           case "heartbeat":
             callbacks.onHeartbeat?.(parsed as SSEHeartbeatEvent);

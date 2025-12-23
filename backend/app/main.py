@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 _image_store = ImageStore()
 
-_PRIMARY_VLM_MODEL = "gemini-2.5-pro"
-_FALLBACK_VLM_MODEL = "gemini-2.5-flash"
+_PRIMARY_VLM_MODEL = "gemini-2.5-flash"
+_FALLBACK_VLM_MODEL = "gemini-2.5-flash-lite"
 
 _PRIMARY_IMAGE_MODEL = "gemini-3-pro-image-preview"
 _FALLBACK_IMAGE_MODEL = "imagen-3.0-generate-001"
@@ -953,9 +953,11 @@ async def _stream_scan(req: ScanRequest, job_id: str | None = None) -> AsyncGene
 
             top3: List[MenuItem] = []
             remaining_for_images = ux_deadline - loop.time()
+            print(f"[DEBUG] Top3 image generation check: items={len(items_by_key)}, remaining_time={remaining_for_images:.1f}s, client={client is not None}")
             logger.info("Top3 image generation: items=%d, remaining_time=%.1fs", len(items_by_key), remaining_for_images)
             
             if items_by_key and remaining_for_images > 10:  # Need at least 10s for image gen
+                print(f"[DEBUG] Entering TOP3 selection block")
                 snapshot = _snapshot_items()
                 top3_candidates = [i for i in snapshot if i.is_top3]
                 changed_top3 = False
@@ -1021,19 +1023,24 @@ async def _stream_scan(req: ScanRequest, job_id: str | None = None) -> AsyncGene
                         except Exception as e:
                             return item, None, e
 
+                    print(f"[DEBUG] Starting image generation tasks for {len(top3)} items")
                     tasks = {asyncio.create_task(_gen_one(item)): item for item in top3}
                     image_fallback_announced = False
 
                     for done_task in asyncio.as_completed(list(tasks.keys())):
                         if loop.time() >= ux_deadline:
+                            print(f"[DEBUG] Image generation stopped: exceeded deadline")
                             break
                         item, img_bytes, err = await done_task
                         item_id = item.id
+                        print(f"[DEBUG] Image gen result for item {item_id}: bytes={len(img_bytes) if img_bytes else 0}, err={err}")
 
                         if err is None and img_bytes is not None:
                             img_bytes = _ensure_jpeg_bytes(img_bytes)
                             key = f"gen/{session_id}/{item_id}.jpg"
+                            print(f"[DEBUG] Storing image to key={key}, size={len(img_bytes)}")
                             _image_store.put(key, img_bytes, content_type="image/jpeg")
+                            print(f"[DEBUG] Yielding image_update event for item {item_id}")
                             yield sse_event(
                                 "image_update",
                                 {
@@ -1043,6 +1050,7 @@ async def _stream_scan(req: ScanRequest, job_id: str | None = None) -> AsyncGene
                                     "image_url": f"{public_base_url}/assets/gen/{session_id}/{item_id}.jpg",
                                 },
                             )
+                            print(f"[DEBUG] image_update event yielded for item {item_id}")
                             continue
 
                         if isinstance(err, asyncio.TimeoutError):

@@ -59,7 +59,9 @@ export default function DishScreen() {
       
       // Check available voices
       const voices = await Speech.getAvailableVoicesAsync();
-      const japaneseVoice = voices.find(v => v.language.startsWith("ja"));
+      const japaneseVoice =
+        voices.find((v) => v.language === "ja-JP") ??
+        voices.find((v) => v.language?.startsWith("ja"));
       if (__DEV__) {
         console.log("[TTS] Japanese voice found:", japaneseVoice?.identifier);
       }

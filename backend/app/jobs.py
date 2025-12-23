@@ -520,7 +520,7 @@ async def run_scan_task(
         items: List[Dict[str, Any]] = []
         final_status = "completed"
 
-        async for sse_str in _stream_scan(scan_request):
+        async for sse_str in _stream_scan(scan_request, job_id=job_id):
             # Parse the SSE string to extract event type and data
             lines = sse_str.strip().split("\n")
             event_type = "unknown"

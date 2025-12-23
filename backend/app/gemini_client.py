@@ -656,10 +656,15 @@ class GeminiClient:
         prompt: str,
         aspect_ratio: str = "1:1",
     ) -> bytes:
+        import logging
         from google.genai import types
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Generating image with model={self.image_model}, prompt_len={len(prompt)}")
 
         # Prefer Imagen for text-to-image.
         if self.image_model.startswith("imagen-"):
+            logger.info("Using Imagen API (generate_images)")
             result = self._client.models.generate_images(
                 model=self.image_model,
                 prompt=prompt,
@@ -671,24 +676,32 @@ class GeminiClient:
                 ),
             )
             if not result.generated_images:
+                logger.error("Imagen returned no images")
                 raise RuntimeError("Imagen returned no images")
+            logger.info("Imagen generation successful")
             return result.generated_images[0].image.image_bytes
 
         # Fallback: Gemini native image generation model.
+        logger.info("Using Gemini native image generation (generate_content)")
         response = self._client.models.generate_content(
             model=self.image_model,
             contents=[prompt],
         )
 
-        for part in getattr(response, "parts", []) or []:
+        parts = getattr(response, "parts", []) or []
+        logger.info(f"Response received, parts count: {len(parts)}")
+        
+        for part in parts:
             inline = getattr(part, "inline_data", None)
             if inline is not None and getattr(inline, "data", None) is not None:
                 data = inline.data
                 # Depending on SDK version, this may be bytes or base64 string.
                 if isinstance(data, str):
                     import base64
-
+                    logger.info("Image data received as base64 string")
                     return base64.b64decode(data)
+                logger.info("Image data received as bytes")
                 return data
 
+        logger.error(f"Image model returned no inline image data. Parts: {len(parts)}, Response: {response}")
         raise RuntimeError("Image model returned no inline image data")
